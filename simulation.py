@@ -30,12 +30,12 @@ def solve_system(noise, zeta_std, phase_std, zetas, phases, T=0.27*10**(-3), l=0
     f_off = n_phases[3]/(2*np.pi*T)-((n_phases[2]-n_phases[3])*np.cos(eta[0])/(np.cos(n_zetas[2]-eta[0])-np.cos(eta[0])))
     return eta, f_d, v, f_off, alpha, delta, gamma, n_zetas
 
-def check_phases(eta, f_d, v, f_off, zetas, T=0.27*10**(-3), l=0.005):
+def check_phases(eta, f_d, v, f_off, zetas, T=0.27*10**(-3), l=0.005, k=1):
     c_phases = np.zeros(4)
-    c_phases[0] = (2*np.pi*T*(f_d+(v/l*np.cos(zetas[0]-eta))+f_off))#%np.pi 
-    c_phases[1] = (2*np.pi*T*(v/l*np.cos(zetas[1]-eta)+f_off))#%np.pi
-    c_phases[2] = (2*np.pi*T*(v/l*np.cos(zetas[2]-eta)+f_off))#%np.pi
-    c_phases[3] = (2*np.pi*T*(v/l*np.cos(eta)+f_off))#%np.pi
+    c_phases[0] = (2*np.pi*T*(f_d+(v/l*np.cos(zetas[0]-eta))+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[1] = (2*np.pi*T*(v/l*np.cos(zetas[1]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[2] = (2*np.pi*T*(v/l*np.cos(zetas[2]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[3] = (2*np.pi*T*(v/l*np.cos(eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
     return c_phases
 
 def boxplot_plot(errors, xlabel, ylabel, xticks, title, name=''):
@@ -60,9 +60,9 @@ def check_system():
             if c_phases[j]-phases[j] > 10**(-10):
                 print(c_phases[j]-phases[j])
 
-def get_input():
+def get_input(k=1):
     f_d = np.random.uniform(-1000,1000)
-    f_off = np.random.normal(100000,10000)
+    f_off = np.random.normal(100000,10000,2)
     v = np.random.uniform(-5,5)
     while True:
         check = True
@@ -77,8 +77,8 @@ def get_input():
                 #print('problem 2')
         if check:
             break
-    phases = check_phases(eta, f_d, v, f_off, zetas)
-    return phases, zetas, eta, f_d, v, f_off
+    phases = check_phases(eta, f_d, v, f_off, zetas, k=k)
+    return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
 
 SNR = np.array([-10,-5,0,5,10,15,20])
 SNR = np.power(10,SNR/10)
@@ -107,7 +107,7 @@ for z_std in np.deg2rad(zeta_std):
         tot_v_error.append(v_error)
         tot_f_off_error.append(f_off_error)
     boxplot_plot(tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(np.rad2deg(z_std)) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-    boxplot_plot(tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(np.rad2deg(z_std)) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+    boxplot_plot(tot_f_d_error[2:], "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR[2:]), "frequency Doppler errors with zeta std = " + str(np.rad2deg(z_std)) + "°", 'bfd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
 print('eta mean error: ' + str(np.mean(eta_error)))
 print('Doppler mean error: ' + str(np.mean(f_d_error)))
