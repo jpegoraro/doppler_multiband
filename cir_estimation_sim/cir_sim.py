@@ -2,9 +2,9 @@ from pathlib import Path
 import numpy as np
 import scipy as sp
 from scipy.io import loadmat
-import h5py
+#import h5py
 import matplotlib.pyplot as plt
-from utils import *
+#from utils import *
 import pickle
 import tqdm
 from scipy.signal import correlate, correlation_lags
@@ -134,6 +134,23 @@ def gen_noise(n, params):
     return noise
 
 
+def get_snr(h, h_n):
+    """
+        compute the SNR after the channel [dB].
+        h: real channel impulse response.
+        h_n:  noisy (estimated) channel impulse response.
+    """
+    h = h[:100]
+    h_n = h_n[:100]
+    h = h / np.max(np.abs(h))
+    h_n = h_n / np.max(np.abs(h_n))
+    ind = np.argmax(np.abs(h))
+    signal_p = np.var(h)
+    noise_p = np.mean(np.abs(h_n[ind]-h[ind])**2)
+    snr = signal_p/noise_p
+    return 10*np.log10(snr)
+
+
 if __name__ == "__main__":
     params = {
         "A_signal": 1,
@@ -150,7 +167,8 @@ if __name__ == "__main__":
         "TO": 1.6 * 1 / 1.76e9,
         "CFO": np.pi,
         "TOstd": 20,
-        "simlen": 1000,
+        "simlen": 10000,
+        "plot": False,
     }
 
     path = Path("cir_estimation_sim")
@@ -159,11 +177,12 @@ if __name__ == "__main__":
     signal = params["A_signal"] * np.pad(trn, params["cir_bins"])[params["cir_bins"] :]
     Ga, Gb = load_Golay_seqs(path)
 
-    snrlist = [5, 10]
-
+    snrlist = [0, 5, 10, 15]
+    g = np.zeros(len(snrlist))
     for k, s in enumerate(snrlist):
         print("####################################")
         print(f"Simulating SNR = {s}")
+        temp_g = []
         for i in range(params["simlen"]):
             print("iteration: ", i, end="\r")
 
@@ -187,10 +206,10 @@ if __name__ == "__main__":
             params["amplitudes"][0] = (wavelength / 4 * np.pi) / (params["ranges"][0])
 
             params["TO"] = (
-                -np.random.uniform(0, params["TOstd"]) * params["dtau"]
+                0#-np.random.uniform(0, params["TOstd"]) * params["dtau"]
             )  # off-grid
 
-            params["CFO"] = np.random.uniform(0, 0.5)
+            params["CFO"] = 0#np.random.uniform(0, 0.5)
 
             params["SNR"] = s
 
@@ -211,26 +230,32 @@ if __name__ == "__main__":
 
             h_est_clean = estimate_CIR(y_clean, Ga, Gb)
             h_est_off = estimate_CIR(y_off, Ga, Gb)
+            
+            after_channel_snr = get_snr(true_h_off, h_est_off)
+            temp_g.append(10**((after_channel_snr-s)/10)) # linear gain
 
             # example plots
-            fig, ax = plt.subplots(1, 2)
-            ax[0].plot(
-                np.abs(true_h_clean) / np.max(np.abs(true_h_clean)), label="True"
-            )
-            ax[0].plot(
-                np.abs(h_est_clean) / np.max(np.abs(h_est_clean)), label="Estimated"
-            )
-            ax[0].set_title("Clean")
-            ax[0].set_xlabel("Delay bins")
-            ax[0].set_ylabel("CIR magnitude")
-            ax[0].legend()
+            if params["plot"]:
+                fig, ax = plt.subplots(1, 2)
+                ax[0].plot(
+                    np.abs(true_h_clean) / np.max(np.abs(true_h_clean)), label="True"
+                )
+                ax[0].plot(
+                    np.abs(h_est_clean) / np.max(np.abs(h_est_clean)), label="Estimated"
+                )
+                ax[0].set_title("Clean")
+                ax[0].set_xlabel("Delay bins")
+                ax[0].set_ylabel("CIR magnitude")
+                ax[0].legend()
 
-            ax[1].plot(np.abs(true_h_off) / np.max(np.abs(true_h_off)), label="True")
-            ax[1].plot(np.abs(h_est_off) / np.max(np.abs(h_est_off)), label="Estimated")
-            ax[1].set_title("With offset")
-            ax[1].set_xlabel("Delay bins")
-            ax[1].set_ylabel("CIR magnitude")
-            ax[1].legend()
+                ax[1].plot(np.abs(true_h_off) / np.max(np.abs(true_h_off)), label="True")
+                ax[1].plot(np.abs(h_est_off) / np.max(np.abs(h_est_off)), label="Estimated")
+                ax[1].set_title("With offset")
+                ax[1].set_xlabel("Delay bins")
+                ax[1].set_ylabel("CIR magnitude")
+                ax[1].legend()
 
-            plt.tight_layout()
-            plt.show()
+                plt.tight_layout()
+                plt.show()
+        g[k] = np.mean(temp_g)
+        print('Average linear gain after the channel : ' + str(g[k]))

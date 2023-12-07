@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 def solve_system(noise, zeta_std, phase_std, zetas, phases, T=0.27*10**(-3), l=0.005):
     """
@@ -60,7 +61,7 @@ def boxplot_plot(errors, xlabel, ylabel, xticks, title, name=''):
     plt.xticks(np.arange(len(xticks)), xticks)
     plt.title(title)
     plt.savefig('plots/averaged_results/'+name+'.png')
-    plt.show()
+    #plt.show()
 
 def check_system():
     for i in range(10000):
@@ -83,67 +84,70 @@ def get_input(k=1):
     f_d = np.random.uniform(-1000,1000)
     f_off = np.random.normal(100000,10000,2)
     v = np.random.uniform(-5,5)
+    count = 0
     while True:
         check = True
         zetas = np.random.uniform(-np.pi/4,np.pi/4,3)
         eta = np.random.uniform(0,2*np.pi)
-        for z in zetas:
-            if z-(2*eta)<1e-10:
-                check = False
-                #print('problem 1')
-            if z<1e-10:
-                check = False
-                #print('problem 2')
-        if check:
+        phases = get_phases(eta, f_d, v, f_off, zetas, k=k)
+        alpha = (phases[1]-phases[3])*np.cos(zetas[2])
+        delta = phases[2]-phases[1]
+        gamma = (phases[3]-phases[2])*np.cos(zetas[1])
+        if abs(alpha+delta+gamma)<1e-5:
+            check = False
+        if check or count>100000:
             break
-    phases = get_phases(eta, f_d, v, f_off, zetas, k=k)
+        count += 1
     return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
 
-SNR = np.array([-10,-5,0,5,10,15,20])
-N = 10000 # number of simulations
-interval = 100 # number of samples in which variables can be considered constant 
-SNR = np.power(10,SNR/10)
-p_std = np.sqrt(1/(2*256*SNR))
-zeta_std = [1,3,5,7,10]
-for z_std in np.deg2rad(zeta_std):
-    tot_eta_error = []
-    tot_f_d_error = []
-    tot_v_error = []
-    tot_f_off_error = []
-    for phase_std,snr in zip(p_std,SNR):
-        eta_error = []
-        f_d_error = []
-        f_off_error = []
-        v_error = []
-        for i in range(N):
-            phases,zetas,eta,f_d,v,f_off = get_input()
-            etas_n = []
-            f_ds_n = []
-            vs_n = []
-            f_offs_n = []
-            for i in range(interval):
-                eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases)
-                etas_n.append(eta_n[1])
-                f_ds_n.append(f_d_n[0])
-                vs_n.append(v_n[1])
-                f_offs_n.append(f_off_n)
-            eta_error.append(eta-np.mean(etas_n))
-            f_d_error.append(np.sqrt((f_d-np.mean(f_ds_n))**2))
-            v_error.append(v-np.mean(vs_n))
-            f_off_error.append(f_off-np.mean(f_offs_n))
-        tot_eta_error.append(eta_error)
-        tot_f_d_error.append(f_d_error)
-        tot_v_error.append(v_error)
-        tot_f_off_error.append(f_off_error)
-    boxplot_plot(tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(np.rad2deg(z_std)) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-    boxplot_plot(tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(np.rad2deg(z_std)) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+if __name__=='__main__':
 
-print('eta mean error: ' + str(np.mean(eta_error)))
-print('Doppler mean error: ' + str(np.mean(f_d_error)))
-print('speed mean error: ' + str(np.mean(v_error)))
-print('frequency offset mean error: ' + str(np.mean(f_off_error)))
+    SNR = np.array([-10,-5,0,5,10,15,20])
+    N = 10000 # number of simulations
+    interval = 100 # number of samples in which variables can be considered constant 
+    SNR = np.power(10,SNR/10)
+    p_std = np.sqrt(1/(2*256*SNR))
+    zeta_std = [1,3,5,7,10]
+    for z_std in np.deg2rad(zeta_std):
+        tot_eta_error = []
+        tot_f_d_error = []
+        tot_v_error = []
+        tot_f_off_error = []
+        print('zeta std: ' + str(round(np.rad2deg(z_std))))
+        for phase_std,snr in zip(p_std,SNR):
+            eta_error = []
+            f_d_error = []
+            f_off_error = []
+            v_error = []
+            for i in tqdm(range(N)):
+                phases,zetas,eta,f_d,v,f_off = get_input()
+                etas_n = []
+                f_ds_n = []
+                vs_n = []
+                f_offs_n = []
+                for i in range(interval):
+                    eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases)
+                    etas_n.append(eta_n[1])
+                    f_ds_n.append(f_d_n[0])
+                    vs_n.append(v_n[1])
+                    f_offs_n.append(f_off_n)
+                eta_error.append(eta-np.mean(etas_n))
+                f_d_error.append(np.sqrt((f_d-np.mean(f_ds_n))**2))
+                v_error.append(v-np.mean(vs_n))
+                f_off_error.append(f_off-np.mean(f_offs_n))
+            tot_eta_error.append(eta_error)
+            tot_f_d_error.append(f_d_error)
+            tot_v_error.append(v_error)
+            tot_f_off_error.append(f_off_error)
+        boxplot_plot(tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
-# print('eta: ' + str(eta_n) + '  real eta: ' + str(eta))
-# print('Doppler: ' + str(f_d_n) + '  real Doppler: ' + str(f_d))
-# print('speed: ' + str(v_n) + '  real speed: ' + str(v))
-# print('frequency offset: ' + str(f_off_n) + '  real frequency offset: ' + str(f_off))
+    print('eta mean error: ' + str(np.mean(eta_error)))
+    print('Doppler mean error: ' + str(np.mean(f_d_error)))
+    print('speed mean error: ' + str(np.mean(v_error)))
+    print('frequency offset mean error: ' + str(np.mean(f_off_error)))
+
+    # print('eta: ' + str(eta_n) + '  real eta: ' + str(eta))
+    # print('Doppler: ' + str(f_d_n) + '  real Doppler: ' + str(f_d))
+    # print('speed: ' + str(v_n) + '  real speed: ' + str(v))
+    # print('frequency offset: ' + str(f_off_n) + '  real frequency offset: ' + str(f_off))
