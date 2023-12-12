@@ -73,6 +73,7 @@ def simulate_channel(params, ncir=256, ncfr=256, add_to=True, add_cfo=True):
         cir_clean / np.abs(amps[0]),
         cir_tot / np.abs(amps[0]),
         df,
+        cir_clean,
     )
 
 
@@ -142,11 +143,12 @@ def get_snr(h, h_n):
     """
     h = h[:100]
     h_n = h_n[:100]
-    h = h / np.max(np.abs(h))
-    h_n = h_n / np.max(np.abs(h_n))
+    #h = h / np.max(np.abs(h))
+    #h_n = h_n / np.max(np.abs(h_n))
     ind = np.argmax(np.abs(h))
+    ind_n = np.argmax(np.abs(h_n))
     signal_p = np.var(h)
-    noise_p = np.mean(np.abs(h_n[ind]-h[ind])**2)
+    noise_p = np.mean(np.abs(h_n-h)**2)
     snr = signal_p/noise_p
     return 10*np.log10(snr)
 
@@ -183,6 +185,7 @@ if __name__ == "__main__":
         print("####################################")
         print(f"Simulating SNR = {s}")
         temp_g = []
+        snr = []
         for i in range(params["simlen"]):
             print("iteration: ", i, end="\r")
 
@@ -217,6 +220,7 @@ if __name__ == "__main__":
                 true_h_clean,
                 true_h_off,
                 df,
+                true_h, # clean not normalized
             ) = simulate_channel(params)
 
             y_clean = pass_through_channel(signal, true_h_clean)
@@ -225,14 +229,19 @@ if __name__ == "__main__":
             noise1 = gen_noise(len(y_clean), params)
             noise2 = gen_noise(len(y_off), params)
 
-            y_clean += noise1
-            y_off += noise2
+            y_clean_noisy = y_clean + noise1
+            y_off_noisy = y_off + noise2
 
-            h_est_clean = estimate_CIR(y_clean, Ga, Gb)
-            h_est_off = estimate_CIR(y_off, Ga, Gb)
+            h_est_clean = estimate_CIR(y_clean_noisy, Ga, Gb)
+            h_est_off = estimate_CIR(y_off_noisy, Ga, Gb)
             
-            after_channel_snr = get_snr(true_h_off, h_est_off)
-            temp_g.append(10**((after_channel_snr-s)/10)) # linear gain
+            #after_channel_snr = get_snr(y_clean, h_est_clean)
+            noise = pass_through_channel(noise1,true_h_clean)
+            ind = np.argmax(h_est_clean)
+            new_s = 10*np.log10(np.var(h_est_clean)/np.var(noise))
+            snr.append(new_s)#np.abs(h_est_clean/h_est_clean[ind]-true_h_clean)**2))
+            #post_est_snr.append(np.abs(h_est_clean))
+            temp_g.append(10**((new_s-s)/10)) # linear gain
 
             # example plots
             if params["plot"]:
@@ -258,4 +267,5 @@ if __name__ == "__main__":
                 plt.tight_layout()
                 plt.show()
         g[k] = np.mean(temp_g)
+        print('Average after channel snr: ' + str(np.mean(snr)) + ' dB')
         print('Average linear gain after the channel : ' + str(g[k]))
