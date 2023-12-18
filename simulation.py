@@ -83,6 +83,18 @@ def check_system():
             if c_phases[j]-phases[j] > 10**(-10):
                 print(c_phases[j]-phases[j])
 
+def plot_ransac(x,y_real,y_noisy,y_pred,mask):
+    plt.plot(x,y_pred,label='RANSAC predicitons',c='r', linewidth=2)
+    plt.plot(x,y_real,label='Real values',c='g',linewidth=2)
+    plt.scatter(x,y_noisy,label='Noisy values')
+    y_noisy = y_noisy*mask  
+    x = x[y_noisy!=0]
+    y_noisy = y_noisy[y_noisy!=0]
+    plt.scatter(x,y_noisy,label='Selected subset')
+    plt.grid()
+    plt.legend(loc='upper left')
+    plt.show()
+
 def get_input(k=1):
     """
     k=1 it represents the discrete time variable, we assume it equal to 1, 
@@ -142,10 +154,11 @@ def simulation(path, ):
                 eta_error.append(eta-np.mean(etas_n))
                 ### RANSAC ###
                 mean_estimator = MeanEstimator()
-                ransac = RANSACRegressor(estimator=mean_estimator, min_samples=50)
+                ransac = RANSACRegressor(estimator=mean_estimator, min_samples=70)
                 time = np.arange(len(f_ds_n)).reshape(-1,1)
                 ransac.fit(time,f_ds_n)
                 pred_f_d = ransac.predict(time)
+                plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
                 f_d_error.append(np.abs(f_d-np.mean(pred_f_d))/f_d)
                 ##############
                 v_error.append(v-np.mean(vs_n))
