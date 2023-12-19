@@ -154,12 +154,12 @@ def simulation(path, ):
                 eta_error.append(eta-np.mean(etas_n))
                 ### RANSAC ###
                 mean_estimator = MeanEstimator()
-                ransac = RANSACRegressor(estimator=mean_estimator, min_samples=70)
+                ransac = RANSACRegressor(estimator=mean_estimator, min_samples=50)
                 time = np.arange(len(f_ds_n)).reshape(-1,1)
                 ransac.fit(time,f_ds_n)
                 pred_f_d = ransac.predict(time)
-                plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
-                f_d_error.append(np.abs(f_d-np.mean(pred_f_d))/f_d)
+                #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
+                f_d_error.append(np.abs((f_d-np.mean(pred_f_d))))
                 ##############
                 v_error.append(v-np.mean(vs_n))
                 f_off_error.append(f_off-np.mean(f_offs_n))
@@ -172,5 +172,5 @@ def simulation(path, ):
 
 
 if __name__=='__main__':
-    path = 'plots/new_solution/ransac_1dim/'
+    path = 'plots/new_solution/ransac_1dim/absolute/'
     simulation(path)
