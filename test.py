@@ -6,7 +6,7 @@ from sklearn.linear_model import RANSACRegressor
 from MeanEstimator import MeanEstimator
 import tikzplotlib as tik
 
-def solve_system(noise, zeta_std, phase_std, zetas, phases, new=True, T=0.27*10**(-3), l=0.005):
+def solve_system(noise, zeta_std, phase_std, zetas, phases, eta, new=True, T=0.27*10**(-3), l=0.005):
     """
         noise: wether to add noise to phases and angle of arrivals;
         zeta_std: standard deviation for the noise variable regarding the angle of arrivals;
@@ -34,16 +34,19 @@ def solve_system(noise, zeta_std, phase_std, zetas, phases, new=True, T=0.27*10*
             eta = np.pi/2 - np.arctan(-(beta+epsilon)/(alpha+delta+gamma))
             print('wow')
         else:
+            #check = -(beta+epsilon)/(alpha+delta+gamma)>0
+            A = (np.sin(n_zetas[1])*(1-np.cos(n_zetas[2]))) + (np.sin(n_zetas[2])*(np.cos(n_zetas[1])-1))
             eta = np.arctan(-(alpha+delta+gamma)/(beta+epsilon))
-        A = (np.sin(n_zetas[1])*(1-np.cos(n_zetas[2]))) + (np.sin(n_zetas[2])*(np.cos(n_zetas[1])-1))
-        if not (beta+epsilon)/A>0:
-            eta = eta + np.pi
-        if eta<0:
-            eta = eta + (2*np.pi)
-        f_d = (n_phases[0]-n_phases[3]-(((n_phases[2]-n_phases[3])*(np.cos(n_zetas[0]-eta)-np.cos(eta)))/(np.cos(n_zetas[2]-eta)-np.cos(eta))))/(2*np.pi*T)
+            
+            check = (beta+epsilon)/(A)>0
+            if not check:
+                eta = eta + np.pi
+            if eta<0:
+                eta=eta+(2*np.pi)
         v = l/(2*np.pi*T)*(n_phases[2]-n_phases[3])/(np.cos(n_zetas[2]-eta)-np.cos(eta))
+        f_d = (n_phases[0]-n_phases[3]-(((n_phases[2]-n_phases[3])*(np.cos(n_zetas[0]-eta)-np.cos(eta)))/(np.cos(n_zetas[2]-eta)-np.cos(eta))))/(2*np.pi*T)
         f_off = n_phases[3]/(2*np.pi*T)-((n_phases[2]-n_phases[3])*np.cos(eta)/(np.cos(n_zetas[2]-eta)-np.cos(eta)))
-        return eta, f_d, v, f_off, alpha, delta, gamma, n_zetas
+        return eta, f_d, v, f_off, alpha, delta, gamma, n_zetas, check>0
     else:
         t = np.roots([-(alpha+delta+gamma),2*(beta+epsilon),(alpha+delta+gamma)])
         f_d = np.zeros(2)
@@ -75,9 +78,9 @@ def boxplot_plot(path, errors, xlabel, ylabel, xticks, title, name=''):
     ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
     plt.xticks(np.arange(len(xticks)), xticks)
     plt.title(title)
-    plt.savefig(path+name+'.png')
-    #plt.show()
-    tik.save(path+name+'.tex')
+    #plt.savefig(path+name+'.png')
+    plt.show()
+    #tik.save(path+name+'.tex')
 
 def check_system():
     for i in range(10000):
@@ -128,15 +131,15 @@ def get_input(k=1):
         # count += 1
     return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
 
-def simulation(path, relative):
+def simulation(path, ):
     SNR = np.array([0,5,10,15])
     N = 10000 # number of simulations
-    interval = 100 # number of samples in which variables can be considered constant 
+    interval = 1 # number of samples in which variables can be considered constant 
     SNR = np.power(10,SNR/10)
     p_std = np.sqrt(1/(2*256*SNR))
     zeta_std = [1,3,5]
     mean_estimator = MeanEstimator()
-    ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
+    ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=300)
     ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=50)
     for z_std in np.deg2rad(zeta_std):
         tot_eta_error = []
@@ -154,7 +157,7 @@ def simulation(path, relative):
                 vs_n = []
                 f_offs_n = []
                 for i in range(interval):
-                    eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
+                    eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas, check= solve_system(False, z_std, phase_std, zetas, phases, eta, new=True)
                     etas_n.append(eta_n)
                     f_ds_n.append(f_d_n)
                     vs_n.append(v_n)
@@ -163,53 +166,32 @@ def simulation(path, relative):
                 #ransac = RANSACRegressor(estimator=mean_estimator, min_samples=50)
                 time = np.arange(len(f_ds_n)).reshape(-1,1)
                 # Doppler frequency
-                ransac_fd.fit(time,f_ds_n)
-                pred_f_d = ransac_fd.predict(time)
+                #ransac_fd.fit(time,f_ds_n)
+                #pred_f_d = ransac_fd.predict(time)
                 #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
-                if relative:
-                    f_d_error.append(np.abs((f_d-np.mean(pred_f_d))/f_d))
-                else:
-                    f_d_error.append(np.abs(f_d-np.mean(pred_f_d)))
+                f_d_error.append(np.abs((f_d-np.mean(f_ds_n))))
                 # eta
                 etas_n = np.mod(etas_n,2*np.pi)
-                try:
-                    ransac.fit(time,etas_n)
-                    pred_eta = ransac.predict(time)
-                except:
-                    print('ransac exception eta')
-                    pred_eta = np.mean(etas_n)
-                if relative:
-                    eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))/np.rad2deg(eta)))
-                else:
-                    eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))))
-                # speed
-                try:
-                    ransac.fit(time, vs_n)
-                    pred_v = ransac.predict(time)
-                except:
-                    print('ransac exception speed')
-                    pred_v = np.mean(vs_n)
-                if relative:
-                    v_error.append(np.abs((v-np.mean(pred_v))/v))
-                else:
-                    v_error.append(np.abs((v-np.mean(pred_v))))
+                pred_eta = np.mean(etas_n)
+                eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))))
+                # # speed
+                # try:
+                #     ransac.fit(time, vs_n)
+                #     pred_v = ransac.predict(time)
+                # except:
+                #     print('ransac exception speed')
+                #     pred_v = np.mean(vs_n)
+                # v_error.append(np.abs((v-np.mean(pred_v))))
                 ##############
                 
             tot_eta_error.append(eta_error)
             tot_f_d_error.append(f_d_error)
-            tot_v_error.append(v_error)
-        
-        if relative:    
-            boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-        else:
-            boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+            #tot_v_error.append(v_error)
+            
+        boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
 if __name__=='__main__':
-    path = 'plots/new_solution/ransac_1dim/relative/'
-    simulation(path,True)
     path = 'plots/new_solution/ransac_1dim/absolute/'
-    simulation(path,False)
+    simulation(path)
