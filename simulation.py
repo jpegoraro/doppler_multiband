@@ -128,48 +128,57 @@ def get_input(k=1):
         # count += 1
     return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
 
-def simulation(path, relative):
-    SNR = np.array([0,5,10,15])
+def simulation(path, relative, only_fD=True):
+    SNR = 10#np.array([0,5,10,15])
     N = 10000 # number of simulations
     interval = 100 # number of samples in which variables can be considered constant 
     SNR = np.power(10,SNR/10)
     p_std = np.sqrt(1/(2*256*SNR))
-    zeta_std = [1,3,5]
+    zeta_std = 3#[1,3,5]
     mean_estimator = MeanEstimator()
     ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
-    ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=50)
-    for z_std in np.deg2rad(zeta_std):
-        tot_eta_error = []
-        tot_f_d_error = []
-        tot_v_error = []
-        print('zeta std: ' + str(round(np.rad2deg(z_std))))
-        for phase_std,snr in zip(p_std,SNR):
-            eta_error = []
-            f_d_error = []
-            v_error = []
-            for i in tqdm(range(N)):
-                phases,zetas,eta,f_d,v,f_off = get_input()
-                etas_n = []
-                f_ds_n = []
-                vs_n = []
-                f_offs_n = []
-                for i in range(interval):
-                    eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
-                    etas_n.append(eta_n)
-                    f_ds_n.append(f_d_n)
-                    vs_n.append(v_n)
-                    f_offs_n.append(f_off_n)
-                ### RANSAC ###
-                #ransac = RANSACRegressor(estimator=mean_estimator, min_samples=50)
-                time = np.arange(len(f_ds_n)).reshape(-1,1)
-                # Doppler frequency
+    #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=5,  max_trials=400)
+    #for z_std in np.deg2rad(zeta_std):
+    z_std = np.deg2rad(zeta_std)
+    tot_eta_error = []
+    tot_f_d_error = []
+    tot_v_error = []
+    #print('zeta std: ' + str(round(np.rad2deg(z_std))))
+    #for phase_std,snr in zip(p_std,SNR):
+    phase_std = p_std
+    print('phase std: ' + str(p_std))
+    for interval in range(20,120,20):
+        eta_error = []
+        f_d_error = []
+        v_error = []
+        for i in tqdm(range(N)):
+            phases,zetas,eta,f_d,v,f_off = get_input()
+            etas_n = []
+            f_ds_n = []
+            vs_n = []
+            f_offs_n = []
+            for i in range(interval):
+                eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
+                etas_n.append(eta_n)
+                f_ds_n.append(f_d_n)
+                vs_n.append(v_n)
+                f_offs_n.append(f_off_n)
+            ### RANSAC ###
+            ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
+            time = np.arange(len(f_ds_n)).reshape(-1,1)
+            # Doppler frequency
+            try:
                 ransac_fd.fit(time,f_ds_n)
                 pred_f_d = ransac_fd.predict(time)
-                #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
-                if relative:
-                    f_d_error.append(np.abs((f_d-np.mean(pred_f_d))/f_d))
-                else:
-                    f_d_error.append(np.abs(f_d-np.mean(pred_f_d)))
+            except:
+                print('ransac exception fD')
+                pred_f_d = np.mean(f_ds_n)
+            #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
+            if relative:
+                f_d_error.append(np.abs((f_d-np.mean(pred_f_d))/f_d))
+            else:
+                f_d_error.append(np.abs(f_d-np.mean(pred_f_d)))
+            if not only_fD:
                 # eta
                 etas_n = np.mod(etas_n,2*np.pi)
                 try:
@@ -193,23 +202,23 @@ def simulation(path, relative):
                     v_error.append(np.abs((v-np.mean(pred_v))/v))
                 else:
                     v_error.append(np.abs((v-np.mean(pred_v))))
-                ##############
-                
+            ##############
+            
+        if not only_fD:
             tot_eta_error.append(eta_error)
-            tot_f_d_error.append(f_d_error)
             tot_v_error.append(v_error)
-        
-        if relative:    
-            boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-        else:
-            boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-            boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        tot_f_d_error.append(f_d_error)
+    
+    if relative:    
+        #boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", np.arange(20,120,20), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        #boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+    else:
+        boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+        boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
 if __name__=='__main__':
-    path = 'plots/new_solution/ransac_1dim/relative/'
+    path = 'plots/new_solution/ransac_1dim/varying_k/'
     simulation(path,True)
-    path = 'plots/new_solution/ransac_1dim/absolute/'
-    simulation(path,False)
+    
