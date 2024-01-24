@@ -147,67 +147,68 @@ def simulation(path, relative, only_fD=True):
     #for phase_std,snr in zip(p_std,SNR):
     phase_std = p_std
     print('phase std: ' + str(p_std))
-    for interval in range(20,120,20):
-        eta_error = []
-        f_d_error = []
-        v_error = []
-        for i in tqdm(range(N)):
-            phases,zetas,eta,f_d,v,f_off = get_input()
-            etas_n = []
-            f_ds_n = []
-            vs_n = []
-            f_offs_n = []
-            for i in range(interval):
-                eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
-                etas_n.append(eta_n)
-                f_ds_n.append(f_d_n)
-                vs_n.append(v_n)
-                f_offs_n.append(f_off_n)
-            ### RANSAC ###
-            ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
-            time = np.arange(len(f_ds_n)).reshape(-1,1)
-            # Doppler frequency
-            try:
-                ransac_fd.fit(time,f_ds_n)
-                pred_f_d = ransac_fd.predict(time)
-            except:
-                print('ransac exception fD')
-                pred_f_d = np.mean(f_ds_n)
-            #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
-            if relative:
-                f_d_error.append(np.abs((f_d-np.mean(pred_f_d))/f_d))
-            else:
-                f_d_error.append(np.abs(f_d-np.mean(pred_f_d)))
-            if not only_fD:
-                # eta
-                etas_n = np.mod(etas_n,2*np.pi)
-                try:
-                    ransac.fit(time,etas_n)
-                    pred_eta = ransac.predict(time)
-                except:
-                    print('ransac exception eta')
-                    pred_eta = np.mean(etas_n)
-                if relative:
-                    eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))/np.rad2deg(eta)))
-                else:
-                    eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))))
-                # speed
-                try:
-                    ransac.fit(time, vs_n)
-                    pred_v = ransac.predict(time)
-                except:
-                    print('ransac exception speed')
-                    pred_v = np.mean(vs_n)
-                if relative:
-                    v_error.append(np.abs((v-np.mean(pred_v))/v))
-                else:
-                    v_error.append(np.abs((v-np.mean(pred_v))))
-            ##############
-            
-        if not only_fD:
-            tot_eta_error.append(eta_error)
-            tot_v_error.append(v_error)
-        tot_f_d_error.append(f_d_error)
+    #for interval in range(20,120,20):
+    eta_error = []
+    f_d_error = []
+    v_error = []
+    for i in tqdm(range(N)):
+        phases,zetas,eta,f_d,v,f_off = get_input()
+        etas_n = []
+        f_ds_n = []
+        vs_n = []
+        f_offs_n = []
+        #for i in range(interval):
+        eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
+        f_d_error.append(np.abs((f_d-f_d_n)))
+        # etas_n.append(eta_n)
+        # f_ds_n.append(f_d_n)
+        # vs_n.append(v_n)
+        # f_offs_n.append(f_off_n)
+        ### RANSAC ###
+        # ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
+        # time = np.arange(len(f_ds_n)).reshape(-1,1)
+        # # Doppler frequency
+        # try:
+        #     ransac_fd.fit(time,f_ds_n)
+        #     pred_f_d = ransac_fd.predict(time)
+        # except:
+        #     print('ransac exception fD')
+        #     pred_f_d = np.mean(f_ds_n)
+        # #plot_ransac(time,np.ones(len(time))*f_d,f_ds_n,pred_f_d,ransac.inlier_mask_)
+        # if relative:
+        #     f_d_error.append(np.abs((f_d-np.mean(pred_f_d))/f_d))
+        # else:
+        #     f_d_error.append(np.abs(f_d-np.mean(pred_f_d)))
+        # if not only_fD:
+        #     # eta
+        #     etas_n = np.mod(etas_n,2*np.pi)
+        #     try:
+        #         ransac.fit(time,etas_n)
+        #         pred_eta = ransac.predict(time)
+        #     except:
+        #         print('ransac exception eta')
+        #         pred_eta = np.mean(etas_n)
+        #     if relative:
+        #         eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))/np.rad2deg(eta)))
+        #     else:
+        #         eta_error.append(np.abs((np.rad2deg(eta)-np.mean(np.rad2deg(pred_eta)))))
+        #     # speed
+        #     try:
+        #         ransac.fit(time, vs_n)
+        #         pred_v = ransac.predict(time)
+        #     except:
+        #         print('ransac exception speed')
+        #         pred_v = np.mean(vs_n)
+        #     if relative:
+        #         v_error.append(np.abs((v-np.mean(pred_v))/v))
+        #     else:
+        #         v_error.append(np.abs((v-np.mean(pred_v))))
+        # ##############
+        
+    if not only_fD:
+        tot_eta_error.append(eta_error)
+        tot_v_error.append(v_error)
+    tot_f_d_error.append(f_d_error)
     
     if relative:    
         #boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))

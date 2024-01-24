@@ -7,7 +7,11 @@ from MeanEstimator import MeanEstimator
 import tikzplotlib as tik
 
 class Simulation():
-    def __init__(self, l=0.005, T=0.27*10**(-3), v_max=5, fo_mean=1e5, fd_max=1000):
+    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fo_mean=1e5, fd_max=2000):
+        """
+            Default values for a 60 GHz carrier frequency system, which can measure frequency Doppler shift 
+            caused by a motion of at most 5 m/s.
+        """
         self.l = l
         self.T = T
         self.v_max = v_max
@@ -83,9 +87,9 @@ class Simulation():
         ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
         plt.xticks(np.arange(len(xticks)), xticks)
         plt.title(title)
-        #plt.savefig(path+name+'.png')
-        plt.show()
-        #tik.save(path+name+'.tex')
+        plt.savefig(path+name+'.png')
+        #plt.show()
+        tik.save(path+name+'.tex')
 
     def check_system(self):
         for i in range(10000):
@@ -157,7 +161,7 @@ class Simulation():
                         vs_n.append(v_n)
                         f_offs_n.append(f_off_n)
                     ### RANSAC ###
-                    ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
+                    #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
                     time = np.arange(len(f_ds_n)).reshape(-1,1)
                     # Doppler frequency
                     try:
@@ -215,10 +219,11 @@ class Simulation():
 
 if __name__=='__main__':
     path = 'plots/new_solution/ransac_1dim/relative/fc_28/'
-    # sim = Simulation(l=0.011,T=0.26e-3,v_max=10,fo_mean=47e3,fd_max=2000)
-    # sim.simulation(path,True)
-    # path = 'plots/new_solution/ransac_1dim/relative/fc_5/'
-    # sim = Simulation(l=0.06,T=1.5e-3,v_max=10,fo_mean=8.5e3,fd_max=350)
-    # sim.simulation(path,True)
+    sim = Simulation(l=0.011,T=0.26e-3,v_max=10,fo_mean=47e3,fd_max=1900)
+    sim.simulation(path,True,only_fD=False)
+    path = 'plots/new_solution/ransac_1dim/relative/fc_5/'
+    sim = Simulation(l=0.06,T=1.5e-3,v_max=10,fo_mean=8.5e3,fd_max=330)
+    sim.simulation(path,True,only_fD=False)
+    path = 'plots/new_solution/ransac_1dim/relative/fc_60/'
     sim = Simulation()
-    sim.simulation(path,True)
+    sim.simulation(path,relative=True,only_fD=False)
