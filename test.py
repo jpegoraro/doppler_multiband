@@ -4,6 +4,7 @@ import seaborn as sns
 from tqdm import tqdm
 from sklearn.linear_model import RANSACRegressor
 from MeanEstimator import MeanEstimator
+from scipy.optimize import least_squares
 import tikzplotlib as tik
 
 def solve_system(noise, zeta_std, phase_std, zetas, phases, eta, new=True, T=0.27*10**(-3), l=0.005):
@@ -63,11 +64,11 @@ def get_phases(eta, f_d, v, f_off, zetas, T=0.27*10**(-3), l=0.005, k=1):
     """
         Solve the system for the received input parameters and returned the computed phases.
     """
-    c_phases = np.zeros(4)
-    c_phases[0] = (2*np.pi*T*(f_d+(v/l*np.cos(zetas[0]-eta))+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
-    c_phases[1] = (2*np.pi*T*(v/l*np.cos(zetas[1]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
-    c_phases[2] = (2*np.pi*T*(v/l*np.cos(zetas[2]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
-    c_phases[3] = (2*np.pi*T*(v/l*np.cos(eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases = np.zeros(len(zetas)+1)
+    c_phases[0] = (2*np.pi*T*(f_d+(v/l*np.cos(zetas[0]-eta))+(k*f_off[0]-(k-1)*f_off[1])))
+    for i in range(len(zetas)-1):
+        c_phases[i+1] = (2*np.pi*T*(v/l*np.cos(zetas[i+1]-eta)+(k*f_off[0]-(k-1)*f_off[1])))
+    c_phases[-1] = (2*np.pi*T*(v/l*np.cos(eta)+(k*f_off[0]-(k-1)*f_off[1])))
     return c_phases
 
 def boxplot_plot(path, errors, xlabel, ylabel, xticks, title, name=''):
@@ -192,6 +193,62 @@ def simulation(path, ):
         boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
         boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
+def system(x, p_diff, n_zetas, T=0.27e-3, l=0.005):
+    """
+    x = [f_D, v, eta, off]
+    """
+    results = []
+    #target path
+    results.append(p_diff[0]-(2*np.pi*T*(x[0]+(x[1]/l*np.cos(n_zetas[0]-x[2]))+x[3])))
+    # loop for each static path, i.e., excluding LoS and Target
+    for i in range(len(p_diff)-2):
+        results.append(p_diff[i+1]-(2*np.pi*T*(x[1]/l*np.cos(n_zetas[i+1]-x[2])+x[3])))
+    #LoS path
+    results.append(p_diff[-1]-(2*np.pi*T*(x[1]/l*np.cos(x[2])+x[3])))
+    return np.array(results)
+    
+
+def new_get_input(n_static=2, k=1):
+    """
+    k=1 represents the discrete time variable, we assume it equal to 1, 
+    but it is not involved in the computation regarding the Doppler frequency.
+
+    Returns realistic values of: \n measured phases, angle of arrivals, and variables. 
+    """
+    v_max = 5
+    fo_mean = 1e5 
+    fd_max = 2000
+    f_d = np.random.uniform(-fd_max,fd_max)
+    f_off = np.random.normal(fo_mean,10000,2)
+    v = np.random.uniform(0,v_max)
+    zetas = np.random.uniform(-np.pi/4,np.pi/4,n_static+1)
+    eta = np.random.uniform(0,2*np.pi)
+
+    phases = get_phases(eta, f_d, v, f_off, zetas, k=k)
+    return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
+
+
 if __name__=='__main__':
-    path = 'plots/new_solution/ransac_1dim/absolute/'
-    simulation(path)
+    err = []
+    err1 = []
+    for i in range(10000):
+        phases, zetas, eta, f_d, v, f_off = new_get_input(n_static=2)
+        x = [f_d, v, eta, f_off]
+        n_zetas = zetas + np.random.normal(0,np.deg2rad(1),len(zetas))
+        SNR = np.power(10,20/10)
+        n_phases = phases + np.random.normal(0,np.sqrt(1/(2*256*SNR)),len(phases))
+        eta0, f_d0, v0, f_off0, alpha_n, delta_n, gamma_n, n_zetas, check= solve_system(False, 0, 0, zetas, phases, eta, new=True)
+        if v0<0 or v0>5:
+            v0=2
+        if f_d0<-2000 or f_d0>2000:
+            f_d0=500
+        if f_off0<1e5-5e3 or f_off0>1e5+5e3:
+            f_off0=1e5 
+        x_0 = [f_d0, v0, eta0, f_off0]
+        results = least_squares(system, x_0, args=(n_phases,n_zetas), bounds=([-2000,0,0,-np.inf],[2000,5,2*np.pi,np.inf]))
+        results1 = least_squares(system, x_0, args=(n_phases,n_zetas))
+        err.append(abs((results.x[0]-f_d)/f_d))
+        err1.append(abs((results1.x[0]-f_d)/f_d))
+    print('error with bounds: ' +str(np.mean(err)))
+    print('error no bounds: ' +str(np.mean(err1)))
+    

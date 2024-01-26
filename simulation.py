@@ -72,12 +72,12 @@ def boxplot_plot(path, errors, xlabel, ylabel, xticks, title, name=''):
     plt.ylabel(ylabel)
     plt.xlabel(xlabel)
     plt.grid()
-    ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
+    ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=True)
     plt.xticks(np.arange(len(xticks)), xticks)
     plt.title(title)
-    plt.savefig(path+name+'.png')
-    #plt.show()
-    tik.save(path+name+'.tex')
+    #plt.savefig(path+name+'.png')
+    plt.show()
+    #tik.save(path+name+'.tex')
 
 def check_system():
     for i in range(10000):
@@ -129,12 +129,12 @@ def get_input(k=1):
     return phases, zetas, eta, f_d, v, k*f_off[0]-(k-1)*f_off[1]
 
 def simulation(path, relative, only_fD=True):
-    SNR = 10#np.array([0,5,10,15])
+    SNR = 20#np.array([0,5,10,15])
     N = 10000 # number of simulations
     interval = 100 # number of samples in which variables can be considered constant 
     SNR = np.power(10,SNR/10)
     p_std = np.sqrt(1/(2*256*SNR))
-    zeta_std = 3#[1,3,5]
+    zeta_std = 1#[1,3,5]
     mean_estimator = MeanEstimator()
     ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
     #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=5,  max_trials=400)
@@ -159,7 +159,7 @@ def simulation(path, relative, only_fD=True):
         f_offs_n = []
         #for i in range(interval):
         eta_n, f_d_n, v_n, f_off_n, alpha_n, delta_n, gamma_n, n_zetas= solve_system(True, z_std, phase_std, zetas, phases, new=True)
-        f_d_error.append(np.abs((f_d-f_d_n)))
+        f_d_error.append(np.abs((f_d-f_d_n)/f_d))
         # etas_n.append(eta_n)
         # f_ds_n.append(f_d_n)
         # vs_n.append(v_n)
@@ -209,7 +209,7 @@ def simulation(path, relative, only_fD=True):
         tot_eta_error.append(eta_error)
         tot_v_error.append(v_error)
     tot_f_d_error.append(f_d_error)
-    
+    print(np.mean(f_d_error))
     if relative:    
         #boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
         boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", np.arange(20,120,20), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
