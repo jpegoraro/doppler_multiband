@@ -193,18 +193,18 @@ def simulation(path, ):
         boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
         boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
 
-def system(x, p_diff, n_zetas, T=0.27e-3, l=0.005):
+def system(x, phases, n_zetas, T=0.25e-3, l=0.005):
     """
     x = [f_D, v, eta, off]
     """
     results = []
     #target path
-    results.append(p_diff[0]-(2*np.pi*T*(x[0]+(x[1]/l*np.cos(n_zetas[0]-x[2]))+x[3])))
+    results.append(phases[0]-(2*np.pi*T*(x[0]+(x[1]/l*np.cos(n_zetas[0]-x[2]))+x[3])))
     # loop for each static path, i.e., excluding LoS and Target
-    for i in range(len(p_diff)-2):
-        results.append(p_diff[i+1]-(2*np.pi*T*(x[1]/l*np.cos(n_zetas[i+1]-x[2])+x[3])))
+    for i in range(len(phases)-2):
+        results.append(phases[i+1]-(2*np.pi*T*(x[1]/l*np.cos(n_zetas[i+1]-x[2])+x[3])))
     #LoS path
-    results.append(p_diff[-1]-(2*np.pi*T*(x[1]/l*np.cos(x[2])+x[3])))
+    results.append(phases[-1]-(2*np.pi*T*(x[1]/l*np.cos(x[2])+x[3])))
     return np.array(results)
     
 
@@ -215,11 +215,15 @@ def new_get_input(n_static=2, k=1):
 
     Returns realistic values of: \n measured phases, angle of arrivals, and variables. 
     """
+    alpha=0.99
+    std_w=np.sqrt(1e3)
     v_max = 5
     fo_mean = 1e5 
     fd_max = 2000
     f_d = np.random.uniform(-fd_max,fd_max)
-    f_off = np.random.normal(fo_mean,10000,2)
+    f_off = np.zeros(2)
+    f_off[0] = np.random.normal(fo_mean,10000,2)
+    f_off[1] = f_off[0]*alpha+np.random.normal(0,std_w)
     v = np.random.uniform(0,v_max)
     zetas = np.random.uniform(-np.pi/4,np.pi/4,n_static+1)
     eta = np.random.uniform(0,2*np.pi)
