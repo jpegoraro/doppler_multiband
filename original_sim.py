@@ -8,7 +8,7 @@ from scipy.optimize import least_squares
 import tikzplotlib as tik
 
 class Simulation():
-    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fo_mean=1e5, fd_max=2000, alpha=0.99, var_w=1e3, n_static=2):
+    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fd_max=2000, fo_max=15e3, alpha=1, var_w=1e6, n_static=2, ambiguity=False):
         """
             Default values for a 60 GHz carrier frequency system, which can measure frequency Doppler shift 
             caused by a motion of at most 5 m/s.
@@ -17,10 +17,11 @@ class Simulation():
         self.l = l
         self.T = T
         self.v_max = v_max
-        self.fo_mean = fo_mean 
         self.fd_max = fd_max
+        self.fo_max = fo_max 
         self.alpha = alpha
         self.std_w = np.sqrt(var_w)
+        self.ambiguity = ambiguity
 
         # simulation unknowns
         self.eta = 0
@@ -71,9 +72,9 @@ class Simulation():
             if eta<0:
                 eta = eta + (2*np.pi)
             f_d = (n_phases[0]-n_phases[3]-(((n_phases[2]-n_phases[3])*(np.cos(n_zetas[0]-eta)-np.cos(eta)))/(np.cos(n_zetas[2]-eta)-np.cos(eta))))/(2*np.pi*self.T)
-            check = self.check(n_phases,n_zetas,eta)
-            if len(check)!=0:
-                f_d=check[0]
+            #check = self.check(n_phases,n_zetas,eta)
+            #if len(check)!=0:
+            #    f_d=check[0]
             v = self.l/(2*np.pi*self.T)*(n_phases[2]-n_phases[3])/(np.cos(n_zetas[2]-eta)-np.cos(eta))
             f_off = n_phases[3]/(2*np.pi*self.T)-((n_phases[2]-n_phases[3])*np.cos(eta)/(np.cos(n_zetas[2]-eta)-np.cos(eta)))
             return eta, f_d, v #, f_off, alpha, delta, gamma
@@ -125,10 +126,13 @@ class Simulation():
         """
         Computes realistic values of: \n measured phases, angle of arrivals, and variables. 
         """
-        self.f_d = np.random.uniform(-self.fd_max,self.fd_max)        
-        self.f_off[0] = np.random.normal(self.fo_mean,1e6)
+        if self.v_max==5:
+            v_max_sim=3
+            self.v = np.random.uniform(0,3)
+        fd_max = 2/self.l*v_max_sim
+        self.f_d = np.random.uniform(-fd_max,fd_max)        
+        self.f_off[0] = np.random.uniform(-self.fo_max,self.fo_max)
         self.f_off[1] = self.f_off[0]*self.alpha+np.random.normal(0,self.std_w)
-        self.v = np.random.uniform(0,self.v_max)
         self.zetas = np.random.uniform(-np.pi/4,np.pi/4,len(self.zetas))
         self.eta = np.random.uniform(0,2*np.pi)
         self.compute_phases(k=k)
@@ -171,17 +175,16 @@ class Simulation():
         plt.show()
         
 
-    def simulation(self, path, relative, noise=True, only_fD=True):
-        SNR = np.array([0,5,10,15]) #
-        N = 1000 # number of simulations
+    def simulation(self, path, relative, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True):
+        N = 10000 # number of simulations
         interval = 100 # number of samples in which variables can be considered constant 
+        SNR = np.array(SNR)
         SNR = np.power(10,SNR/10)
         p_std = np.sqrt(1/(2*256*SNR))
-        zeta_std = [1,3,5]#
         mean_estimator = MeanEstimator()
         if not only_fD:
             ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
-        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
+        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=20, max_trials=400)
         for z_std in np.deg2rad(zeta_std):
             tot_eta_error = []
             tot_f_d_error = []
@@ -191,6 +194,7 @@ class Simulation():
                 eta_error = []
                 f_d_error = []
                 v_error = []
+                counter = 0
                 for i in tqdm(range(N)):
                     etas_n = []
                     f_ds_n = []
@@ -201,16 +205,21 @@ class Simulation():
                         else:
                             self.update_input(k=i)
                         n_phases, n_zetas = self.add_noise(noise, z_std, phase_std)
-                        if len(self.phases)!=4:
-                            x0 = [500,2,np.pi/3,1e5] # [f_d(0), v(0), eta(0), f_off(0)]
-                            results = least_squares(self.system, x0, args=(n_phases, n_zetas))
+                        if len(self.phases)!=4 or self.ambiguity:
+                            x0 = [500,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
+                            if len(self.phases)==4:
+                                results = least_squares(self.system, x0, args=(n_phases, n_zetas), bounds=([-self.fd_max,0,0,-np.inf],[self.fd_max,self.v_max,2*np.pi,np.inf]))
+                            else:
+                                results = least_squares(self.system, x0, args=(n_phases, n_zetas))
                             etas_n.append(results.x[2])
-                            f_ds_n.append(results.x[0])
+                            if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
+                                f_ds_n.append(results.x[0])
                             vs_n.append(results.x[1])
                         else:
                             eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
                             etas_n.append(eta_n)
-                            f_ds_n.append(f_d_n)
+                            if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
+                                f_ds_n.append(f_d_n)
                             vs_n.append(v_n)
                     ### RANSAC ###
                     #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
@@ -221,7 +230,7 @@ class Simulation():
                         pred_f_d = ransac_fd.predict(time)
                         #self.plot_ransac(time,np.ones(len(time))*self.f_d,f_ds_n,pred_f_d,ransac_fd.inlier_mask_)
                     except:
-                        #print('ransac exception fD')
+                        counter +=1 
                         pred_f_d = np.mean(f_ds_n)
                     if relative:
                         f_d_error.append(np.abs((self.f_d-np.mean(pred_f_d))/self.f_d))
@@ -252,7 +261,7 @@ class Simulation():
                         else:
                             v_error.append(np.abs((self.v-np.mean(pred_v))))
                     ##############
-                    
+                print(str(counter) + ' ransac fD exceptions')    
                 if not only_fD:
                     tot_eta_error.append(eta_error)
                     tot_v_error.append(v_error)
@@ -271,21 +280,68 @@ class Simulation():
 
 if __name__=='__main__':
 
-    # sim = Simulation(T=0.2e-3)
-    # path = 'plots/fc_60/var_w_1/alpha_099/'
+    for ns in [2,4,6,8,10]:
+        # no ambiguity fo=0.1ppm
+        sim = Simulation(T=0.1e-3, fo_max=6e3, n_static=ns)
+        path = 'plots/fc_60/var_w_1000/' + str(ns) + '_static/'
+        #if ns==2:
+        sim.simulation(path, relative=True, noise=True, only_fD=True)
+        # else:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+        # sim = Simulation(l=0.06,T=0.1e-3,v_max=10,fo_mean=8.5e3,fd_max=330, n_static=ns)
+        # path = 'plots/fc_5/var_w_1000/' + str(ns) + '_static/'
+        # if ns==2:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
+        # else:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+        # sim = Simulation(l=0.011,T=1.9e-6,v_max=10,fo_mean=47e3,fd_max=1900, n_static=ns)
+        # path = 'plots/fc_28/var_w_1000/' + str(ns) + '_static/'
+        # if ns==2:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
+        # else:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+            
+        ### AMBIGUITY ### 
+        # 0.25 ppm
+        sim = Simulation(fo_max=15e3, ambiguity=True, n_static=ns)
+        path = 'plots/fc_60/var_w_1000/ambiguity025/' + str(ns) + '_static/'
+        if ns==2 or ns==4:
+            sim.simulation(path, relative=True, noise=True, only_fD=True)
+        else:
+            sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+        # 1 ppm
+        sim = Simulation(fo_max=60e3, ambiguity=True, n_static=ns)
+        path = 'plots/fc_60/var_w_1000/ambiguity1/' + str(ns) + '_static/'
+        if ns==2 or ns==4:
+            sim.simulation(path, relative=True, noise=True, only_fD=True)
+        else:
+            sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+        # sim = Simulation(l=0.06,T=1.45e-3,v_max=10,fo_mean=8.5e3,fd_max=330, ambiguity=True, n_static=ns)
+        # path = 'plots/fc_5/var_w_1000/ambiguity/' + str(ns) + '_static/'
+        # if ns==2:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
+        # else:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+        # sim = Simulation(l=0.011,T=0.2e-3,v_max=10,fo_mean=47e3,fd_max=1900, ambiguity=True, n_static=ns)
+        # path = 'plots/fc_28/var_w_1000/ambiguity/' + str(ns) + '_static/'
+        # if ns==2:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
+        # else:
+        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+
+
+    # sim = Simulation(T=0.2e-3,n_static=4,var_w=1e3)
+    # path = 'plots/fc_60/var_w_1/alpha_099/4_static/'
     # sim.simulation(path, relative=True, noise=True, only_fD=True)
-    
-    sim = Simulation(T=0.2e-3,n_static=3,var_w=1e3)
-    path = 'plots/fc_60/var_w_1/alpha_099/3_static/'
-    sim.simulation(path, relative=True, noise=True, only_fD=True)
 
-    sim = Simulation(T=0.2e-3,n_static=4,var_w=1e3)
-    path = 'plots/fc_60/var_w_1/alpha_099/4_static/'
-    sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    sim = Simulation(T=0.2e-3,n_static=5, var_w=1e3)
-    path = 'plots/fc_60/var_w_1/alpha_099/5_static/'
-    sim.simulation(path, relative=True, noise=True, only_fD=True)
+    # sim = Simulation(T=0.2e-3,n_static=5, var_w=1e3)
+    # path = 'plots/fc_60/var_w_1/alpha_099/5_static/'
+    # sim.simulation(path, relative=True, noise=True, only_fD=True)
 
     # sim = Simulation(T=0.2e-3,var_w=10e3)
     # path = 'plots/fc_60/var_w_10/alpha_099/'
