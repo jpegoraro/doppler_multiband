@@ -34,19 +34,27 @@ class Simulation():
         self.zetas = np.zeros(n_static+1)
         self.n_static = n_static
 
-    def add_noise(self, noise, zeta_std, phase_std):
+    def add_noise_phase(self, noise, phase_std):
         """
             noise: wether to add noise to phases and angle of arrivals;
-            zeta_std: standard deviation for the noise variable regarding the angle of arrivals;
             phase_std: standard deviation for the noise variable regarding the measured phase.
         """
         if noise:
-            n_zetas = self.zetas + np.random.normal(0,zeta_std,self.n_static+1)
             n_phases = self.phases + np.random.normal(0,phase_std,self.n_static+2)
         else:
-            n_zetas = self.zetas
             n_phases = self.phases
-        return n_phases, n_zetas  
+        return n_phases
+
+    def add_noise_aoa(self, noise, zeta_std):
+        """
+            noise: wether to add noise to phases and angle of arrivals;
+            zeta_std: standard deviation for the noise variable regarding the angle of arrivals;
+        """
+        if noise:
+            n_zetas = self.zetas + np.random.normal(0,zeta_std,self.n_static+1)
+        else:
+            n_zetas = self.zetas
+        return n_zetas  
 
 
     def solve_system(self,n_phases, n_zetas, new=True,):
@@ -126,9 +134,8 @@ class Simulation():
         """
         Computes realistic values of: \n measured phases, angle of arrivals, and variables. 
         """
-        if self.v_max==5:
-            v_max_sim=3
-            self.v = np.random.uniform(0,3)
+        v_max_sim= self.v_max-2
+        self.v = np.random.uniform(0,v_max_sim)
         fd_max = 2/self.l*v_max_sim
         self.f_d = np.random.uniform(-fd_max,fd_max)        
         self.f_off[0] = np.random.uniform(-self.fo_max,self.fo_max)
@@ -175,16 +182,16 @@ class Simulation():
         plt.show()
         
 
-    def simulation(self, path, relative, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True):
-        N = 10000 # number of simulations
-        interval = 100 # number of samples in which variables can be considered constant 
+    def simulation(self, path, relative, interval=100, N=10000, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True, plot=True):
+        # N is the number of simulations
+        # interval is the number of samples in which variables can be considered constant 
         SNR = np.array(SNR)
         SNR = np.power(10,SNR/10)
         p_std = np.sqrt(1/(2*256*SNR))
         mean_estimator = MeanEstimator()
         if not only_fD:
             ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
-        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=20, max_trials=400)
+        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=200)
         for z_std in np.deg2rad(zeta_std):
             tot_eta_error = []
             tot_f_d_error = []
@@ -195,6 +202,7 @@ class Simulation():
                 f_d_error = []
                 v_error = []
                 counter = 0
+                samples = 0
                 for i in tqdm(range(N)):
                     etas_n = []
                     f_ds_n = []
@@ -204,7 +212,8 @@ class Simulation():
                             self.compute_input(k=i)
                         else:
                             self.update_input(k=i)
-                        n_phases, n_zetas = self.add_noise(noise, z_std, phase_std)
+                        n_phases = self.add_noise_phase(noise, phase_std)
+                        n_zetas = self.add_noise_aoa(noise, z_std)
                         if len(self.phases)!=4 or self.ambiguity:
                             x0 = [500,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
                             if len(self.phases)==4:
@@ -218,13 +227,13 @@ class Simulation():
                         else:
                             eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
                             etas_n.append(eta_n)
-                            # if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
-                            
+                            #if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
                             f_ds_n.append(f_d_n)
                             vs_n.append(v_n)
                     ### RANSAC ###
                     #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
                     time = np.arange(len(f_ds_n)).reshape(-1,1)
+                    samples += len(f_ds_n)
                     # Doppler frequency
                     try:
                         ransac_fd.fit(time,f_ds_n)
@@ -262,23 +271,29 @@ class Simulation():
                         else:
                             v_error.append(np.abs((self.v-np.mean(pred_v))))
                     ##############
-                print(str(counter) + ' ransac fD exceptions')    
+                print(str(counter) + ' ransac fD exceptions')
+                print('average number of considered samples: ' + str(samples/N))    
                 if not only_fD:
                     tot_eta_error.append(eta_error)
                     tot_v_error.append(v_error)
                 tot_f_d_error.append(f_d_error)
             
-            if relative:    
-                self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-                if not only_fD:
-                    self.boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-                    self.boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+            if plot:
+                if relative:    
+                    self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                    if not only_fD:
+                        self.boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                        self.boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                else:
+                    self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                    if not only_fD:
+                        self.boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                        self.boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
             else:
-                self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "frequency Doppler errors (Hz)", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-                if not only_fD:
-                    self.boxplot_plot(path, tot_v_error, "SNR (dB)", "speed error (m/s)", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-                    self.boxplot_plot(path, tot_eta_error, "SNR (dB)", "eta errors (°)", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
-
+                if only_fD:
+                    return tot_f_d_error
+                else:
+                    return tot_f_d_error,tot_eta_error,tot_v_error
 if __name__=='__main__':
 
     for ns in [2,4,6,8,10]:
