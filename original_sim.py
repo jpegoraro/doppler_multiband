@@ -218,8 +218,9 @@ class Simulation():
                         else:
                             eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
                             etas_n.append(eta_n)
-                            if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
-                                f_ds_n.append(f_d_n)
+                            # if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
+                            
+                            f_ds_n.append(f_d_n)
                             vs_n.append(v_n)
                     ### RANSAC ###
                     #ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2))
