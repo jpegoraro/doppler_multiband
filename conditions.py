@@ -1,5 +1,15 @@
 import numpy as np
-from simulation import get_phases
+
+def get_phases(eta, f_d, v, f_off, zetas, T=0.27*10**(-3), l=0.005, k=1):
+    """
+        Solve the system for the received input parameters and returned the computed phases.
+    """
+    c_phases = np.zeros(4)
+    c_phases[0] = (2*np.pi*T*(f_d+(v/l*np.cos(zetas[0]-eta))+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[1] = (2*np.pi*T*(v/l*np.cos(zetas[1]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[2] = (2*np.pi*T*(v/l*np.cos(zetas[2]-eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    c_phases[3] = (2*np.pi*T*(v/l*np.cos(eta)+(k*f_off[0]-(k-1)*f_off[1])))#%np.pi
+    return c_phases
 
 def get_input(k=1):
     """

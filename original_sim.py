@@ -27,7 +27,7 @@ class Simulation():
         self.eta = 0
         self.f_d = 0
         self.v = 0
-        self.f_off = np.zeros(2)
+        self.f_off = 0
 
         # simulation inputs
         self.phases = np.zeros(n_static+2)
@@ -121,16 +121,20 @@ class Simulation():
         return f_d[f_d>-2100]
 
     
-    def compute_phases(self, k):
+    def compute_phases(self, k:int):
         """
             Solve the system for the received input parameters and returned the computed phases.
         """
-        self.phases[0] = (2*np.pi*self.T*(self.f_d+(self.v/self.l*np.cos(self.zetas[0]-self.eta))+(k*self.f_off[1]-(k-1)*self.f_off[0])))%(2*np.pi)
+        self.phases[0] = (2*np.pi*self.T*(self.f_d+(self.v/self.l*np.cos(self.zetas[0]-self.eta))+(k*self.f_off[k]-(k-1)*self.f_off[k-1])))#%(2*np.pi)
         for i in range(len(self.zetas)-1):
-            self.phases[i+1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.zetas[i+1]-self.eta)+(k*self.f_off[1]-(k-1)*self.f_off[0])))%(2*np.pi)
-        self.phases[-1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.eta)+(k*self.f_off[1]-(k-1)*self.f_off[0])))%(2*np.pi)
+            self.phases[i+1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.zetas[i+1]-self.eta)+(k*self.f_off[k]-(k-1)*self.f_off[k-1])))#%(2*np.pi)
+        self.phases[-1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.eta)+(k*self.f_off[k]-(k-1)*self.f_off[k-1])))#%(2*np.pi)
+        for i,p in enumerate(self.phases):
+            if p<-np.pi or p>np.pi:
+                print('PHASE AMBIGUITY p=' + str(np.rad2deg(p)) + '°') 
+                print('delta CFO='+str(k*self.f_off[k]-(k-1)*self.f_off[k-1]))
     
-    def compute_input(self, k):
+    def compute_input(self, interval, k:int):
         """
         Computes realistic values of: \n measured phases, angle of arrivals, and variables. 
         """
@@ -138,8 +142,13 @@ class Simulation():
         self.v = np.random.uniform(0,v_max_sim)
         fd_max = 2/self.l*v_max_sim
         self.f_d = np.random.uniform(-fd_max,fd_max)        
-        self.f_off[0] = np.random.uniform(-self.fo_max,self.fo_max)
-        self.f_off[1] = self.f_off[0]*self.alpha+np.random.normal(0,self.std_w)
+        self.f_off = np.zeros(interval)
+        k = int(1e-3/self.T)
+        for i in range(interval):
+            if i==0:
+                self.f_off[i] = np.random.normal(0,self.fo_max/(3*np.sqrt(k**3)))
+            else:
+                self.f_off[i] = self.f_off[i-1] + np.random.normal(0,self.fo_max/(3*np.sqrt(k**3)))
         self.zetas = np.random.uniform(-np.pi/4,np.pi/4,len(self.zetas))
         self.eta = np.random.uniform(0,2*np.pi)
         self.compute_phases(k=k)
@@ -181,7 +190,93 @@ class Simulation():
         plt.legend(loc='upper left')
         plt.show()
         
-
+    def debug(self, interval=100, N=10000, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True):
+        # N is the number of simulations
+        # interval is the number of samples in which variables can be considered constant 
+        SNR = np.array(SNR)
+        SNR = np.power(10,SNR/10)
+        p_std = np.sqrt(1/(2*256*SNR))
+        mean_estimator = MeanEstimator()
+        if not only_fD:
+            ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
+        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=200)
+        for z_std in np.deg2rad(zeta_std):
+            tot_eta_error = []
+            tot_f_d_error = []
+            tot_v_error = []
+            print('zeta std: ' + str(round(np.rad2deg(z_std))))
+            for phase_std,snr in zip(p_std,SNR):
+                eta_error = []
+                f_d_error = []
+                v_error = []
+                counter = 0
+                samples = 0
+                for i in tqdm(range(N)):
+                    etas_n = []
+                    f_ds_n = []
+                    f_ds_n_c = []
+                    vs_n = []
+                    phases = []
+                    mod_phases = []
+                    f_off = []
+                    for i in range(1,interval):
+                        if i==1:
+                            phases.append(self.compute_input(k=i))
+                            mod_phases.append(self.phases)
+                        else:
+                            phases.append(self.update_input(k=i))
+                            f_off.append(i*self.f_off[1]-(i-1)*self.f_off[0])
+                            mod_phases.append(self.phases)
+                        n_phases, n_c_phases = self.add_noise_phase(noise, phase_std)
+                        n_zetas = self.add_noise_aoa(noise, z_std)
+                        if len(self.phases)!=4 or self.ambiguity:
+                            x0 = [self.fd_max/4,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
+                            if len(self.phases)==4:
+                                results = least_squares(self.system, x0, args=(n_phases, n_zetas), bounds=([-self.fd_max,0,0,-np.inf],[self.fd_max,self.v_max,2*np.pi,np.inf]))
+                            else:
+                                results = least_squares(self.system, x0, args=(n_phases, n_zetas))
+                            etas_n.append(results.x[2])
+                            if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
+                                f_ds_n.append(results.x[0])
+                            vs_n.append(results.x[1])
+                        else:
+                            eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
+                            eta_n, f_d_n_c, v_n = self.solve_system(n_c_phases, n_zetas, new=True)
+                            etas_n.append(eta_n)
+                            #if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
+                            f_ds_n.append(f_d_n)
+                            f_ds_n_c.append(f_d_n_c)
+                            vs_n.append(v_n)
+                    phases = np.stack(phases)
+                    mod_phases = np.stack(mod_phases)
+                    corrected_phase = np.zeros(len(mod_phases[:,0]))
+                    for i,p in enumerate(mod_phases):
+                        if p[0]>np.pi:
+                            corrected_phase[i]=p[0]-(2*np.pi)
+                        else:
+                            corrected_phase[i]=p[0]
+                    plt.stem(f_off)
+                    plt.figure()
+                    plt.stem(phases[:,0],markerfmt='D')
+                    plt.stem(mod_phases[:,0],'r')
+                    plt.stem(corrected_phase,'y')
+                    plt.stem((f_ds_n-np.ones(len(f_ds_n))*self.f_d)/self.f_d,'g')
+                    plt.legend(['uw phase','mod phase', 'corrected phase', 'relative fD err'])
+                    plt.grid()
+                    plt.show()
+                    
+                print(str(counter) + ' ransac fD exceptions')
+                print('average number of considered samples: ' + str(samples/N))    
+                if not only_fD:
+                    tot_eta_error.append(eta_error)
+                    tot_v_error.append(v_error)
+                tot_f_d_error.append(f_d_error)
+            
+            if only_fD:
+                return tot_f_d_error
+            else:
+                return tot_f_d_error,tot_eta_error,tot_v_error
+                
     def simulation(self, path, relative, interval=100, N=10000, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True, plot=True):
         # N is the number of simulations
         # interval is the number of samples in which variables can be considered constant 
@@ -209,13 +304,13 @@ class Simulation():
                     vs_n = []
                     for i in range(1,interval):
                         if i==1:
-                            self.compute_input(k=i)
+                            self.compute_input(interval,k=i)
                         else:
-                            self.update_input(k=i)
+                            self.compute_phases(k=i)
                         n_phases = self.add_noise_phase(noise, phase_std)
                         n_zetas = self.add_noise_aoa(noise, z_std)
                         if len(self.phases)!=4 or self.ambiguity:
-                            x0 = [500,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
+                            x0 = [self.fd_max/4,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
                             if len(self.phases)==4:
                                 results = least_squares(self.system, x0, args=(n_phases, n_zetas), bounds=([-self.fd_max,0,0,-np.inf],[self.fd_max,self.v_max,2*np.pi,np.inf]))
                             else:
@@ -277,7 +372,6 @@ class Simulation():
                     tot_eta_error.append(eta_error)
                     tot_v_error.append(v_error)
                 tot_f_d_error.append(f_d_error)
-            
             if plot:
                 if relative:    
                     self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
@@ -295,86 +389,17 @@ class Simulation():
                 else:
                     return tot_f_d_error,tot_eta_error,tot_v_error
 if __name__=='__main__':
+    sim = Simulation(T=0.05e-3, fo_max=6e3, var_w=100)
+    path='plots/fc_60/2_static/'
+    sim.simulation(path,relative=True)
+    
+    sim = Simulation(T=0.075e-3, fo_max=2.8e3, var_w=50)
+    path='plots/fc_28/2_static/'
+    sim.simulation(path,relative=True)
 
-    for ns in [2,4,6,8,10]:
-        # no ambiguity fo=0.1ppm
-        sim = Simulation(T=0.1e-3, fo_max=6e3, n_static=ns)
-        path = 'plots/fc_60/var_w_1000/' + str(ns) + '_static/'
-        #if ns==2:
-        sim.simulation(path, relative=True, noise=True, only_fD=True)
-        # else:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-
-        # sim = Simulation(l=0.06,T=0.1e-3,v_max=10,fo_mean=8.5e3,fd_max=330, n_static=ns)
-        # path = 'plots/fc_5/var_w_1000/' + str(ns) + '_static/'
-        # if ns==2:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
-        # else:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-
-        # sim = Simulation(l=0.011,T=1.9e-6,v_max=10,fo_mean=47e3,fd_max=1900, n_static=ns)
-        # path = 'plots/fc_28/var_w_1000/' + str(ns) + '_static/'
-        # if ns==2:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
-        # else:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-            
-        ### AMBIGUITY ### 
-        # 0.25 ppm
-        sim = Simulation(fo_max=15e3, ambiguity=True, n_static=ns)
-        path = 'plots/fc_60/var_w_1000/ambiguity025/' + str(ns) + '_static/'
-        if ns==2 or ns==4:
-            sim.simulation(path, relative=True, noise=True, only_fD=True)
-        else:
-            sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-
-        # 1 ppm
-        sim = Simulation(fo_max=60e3, ambiguity=True, n_static=ns)
-        path = 'plots/fc_60/var_w_1000/ambiguity1/' + str(ns) + '_static/'
-        if ns==2 or ns==4:
-            sim.simulation(path, relative=True, noise=True, only_fD=True)
-        else:
-            sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-
-        # sim = Simulation(l=0.06,T=1.45e-3,v_max=10,fo_mean=8.5e3,fd_max=330, ambiguity=True, n_static=ns)
-        # path = 'plots/fc_5/var_w_1000/ambiguity/' + str(ns) + '_static/'
-        # if ns==2:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
-        # else:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
-
-        # sim = Simulation(l=0.011,T=0.2e-3,v_max=10,fo_mean=47e3,fd_max=1900, ambiguity=True, n_static=ns)
-        # path = 'plots/fc_28/var_w_1000/ambiguity/' + str(ns) + '_static/'
-        # if ns==2:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True)
-        # else:
-        #     sim.simulation(path, relative=True, noise=True, only_fD=True, zeta_std=[3], SNR=[10])
+    sim = Simulation(T=0.04e-3, fo_max=0.5e3, var_w=20)
+    path='plots/fc_5/2_static/'
+    sim.simulation(path,relative=True)
 
 
-    # sim = Simulation(T=0.2e-3,n_static=4,var_w=1e3)
-    # path = 'plots/fc_60/var_w_1/alpha_099/4_static/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(T=0.2e-3,n_static=5, var_w=1e3)
-    # path = 'plots/fc_60/var_w_1/alpha_099/5_static/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(T=0.2e-3,var_w=10e3)
-    # path = 'plots/fc_60/var_w_10/alpha_099/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(T=0.2e-3,var_w=10e3, alpha=1)
-    # path = 'plots/fc_60/var_w_10/alpha_1/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(T=0.2e-3,var_w=100e3)
-    # path = 'plots/fc_60/var_w_100/alpha_099/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(l=0.06,T=1.45e-3,v_max=10,fo_mean=8.5e3,fd_max=330)
-    # path = 'plots/fc_5/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
-
-    # sim = Simulation(l=0.011,T=0.2e-3,v_max=10,fo_mean=47e3,fd_max=1900)
-    # path = 'plots/fc_28/'
-    # sim.simulation(path, relative=True, noise=True, only_fD=True)
+    
