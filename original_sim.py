@@ -8,7 +8,7 @@ from scipy.optimize import least_squares
 import tikzplotlib as tik
 
 class Simulation():
-    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fd_max=2000, fo_max=15e3, alpha=1, var_w=1e6, n_static=2, ambiguity=False):
+    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fo_max=6e3, alpha=1, n_static=2, ambiguity=False):
         """
             Default values for a 60 GHz carrier frequency system, which can measure frequency Doppler shift 
             caused by a motion of at most 5 m/s.
@@ -17,10 +17,9 @@ class Simulation():
         self.l = l
         self.T = T
         self.v_max = v_max
-        self.fd_max = fd_max
+        self.fd_max = None
         self.fo_max = fo_max 
         self.alpha = alpha
-        self.std_w = np.sqrt(var_w)
         self.ambiguity = ambiguity
 
         # simulation unknowns
@@ -140,15 +139,16 @@ class Simulation():
         """
         v_max_sim= self.v_max-2
         self.v = np.random.uniform(0,v_max_sim)
-        fd_max = 2/self.l*v_max_sim
-        self.f_d = np.random.uniform(-fd_max,fd_max)        
+        self.fd_max = 2/self.l*v_max_sim
+        self.f_d = np.random.uniform(-self.fd_max,self.fd_max)        
         self.f_off = np.zeros(interval)
         k = int(1e-3/self.T)
+        std_w = self.fo_max/(3*np.sqrt(k**3))
         for i in range(interval):
             if i==0:
-                self.f_off[i] = np.random.normal(0,self.fo_max/(3*np.sqrt(k**3)))
+                self.f_off[i] = np.random.normal(0,std_w)
             else:
-                self.f_off[i] = self.f_off[i-1] + np.random.normal(0,self.fo_max/(3*np.sqrt(k**3)))
+                self.f_off[i] = self.f_off[i-1] + np.random.normal(0,std_w)
         self.zetas = np.random.uniform(-np.pi/4,np.pi/4,len(self.zetas))
         self.eta = np.random.uniform(0,2*np.pi)
         self.compute_phases(k=k)
@@ -286,7 +286,7 @@ class Simulation():
         mean_estimator = MeanEstimator()
         if not only_fD:
             ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
-        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=200)
+        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=20, max_trials=200)
         for z_std in np.deg2rad(zeta_std):
             tot_eta_error = []
             tot_f_d_error = []
@@ -298,7 +298,7 @@ class Simulation():
                 v_error = []
                 counter = 0
                 samples = 0
-                for i in tqdm(range(N)):
+                for i in tqdm(range(N),dynamic_ncols=True):
                     etas_n = []
                     f_ds_n = []
                     vs_n = []
@@ -389,17 +389,21 @@ class Simulation():
                 else:
                     return tot_f_d_error,tot_eta_error,tot_v_error
 if __name__=='__main__':
-    sim = Simulation(T=0.05e-3, fo_max=6e3, var_w=100)
-    path='plots/fc_60/2_static/'
-    sim.simulation(path,relative=True)
-    
-    sim = Simulation(T=0.075e-3, fo_max=2.8e3, var_w=50)
-    path='plots/fc_28/2_static/'
-    sim.simulation(path,relative=True)
 
-    sim = Simulation(T=0.04e-3, fo_max=0.5e3, var_w=20)
+    ### fc = 60 GHz ###
+    sim = Simulation(T=0.05e-3, fo_max=6e3)
+    path='plots/fc_60/2_static/'
+    sim.simulation(path, relative=True, interval=50)
+    
+    ### fc = 28 GHz ### 
+    sim = Simulation(l=0.0107, T=0.075e-3, v_max=10, fo_max=2.8e3)
+    path='plots/fc_28/2_static/'
+    sim.simulation(path, relative=True, interval=50)
+
+    ### fc = 5 GHz ###
+    sim = Simulation(l=0.06, T=0.09e-3, v_max=10, fo_max=0.5e3)
     path='plots/fc_5/2_static/'
-    sim.simulation(path,relative=True)
+    sim.simulation(path, relative=True, interval=50)
 
 
     
