@@ -389,21 +389,21 @@ class Simulation():
                     return tot_f_d_error,tot_eta_error,tot_v_error
 if __name__=='__main__':
     
-    # ### fc = 60 GHz ###
-    # sim = Simulation(T=0.05e-3, fo_max=6e3)
-    # path='plots/k_2/fc_60/'
+    ### fc = 60 GHz ###
+    # sim = Simulation(T=0.05e-3, fo_max=6e3, n_static=4)
+    # path='plots/fc_60/'
     # #path='plots/test/'
-    # sim.simulation(path, relative=True, N=100000, interval=2)
+    # sim.simulation(path, relative=True, interval=10)
     
-    # ### fc = 28 GHz ### 
-    # sim = Simulation(l=0.0107, T=0.075e-3, v_max=10, fo_max=2.8e3)
-    # path='plots/k_2/fc_28/'
-    # sim.simulation(path, relative=True, N=100000, interval=2)
+    ### fc = 28 GHz ### 
+    sim = Simulation(l=0.0107, T=0.075e-3, v_max=10, fo_max=2.8e3, n_static=4)
+    path='plots/fc_28/'
+    sim.simulation(path, relative=True, zeta_std=[5], interval=10)
 
     ### fc = 5 GHz ###
-    sim = Simulation(l=0.06, T=0.09e-3, v_max=10, fo_max=0.5e3)
-    path='plots/k_2/fc_5/'
-    sim.simulation(path, relative=True, N=100000, interval=2)
+    # sim = Simulation(l=0.06, T=0.09e-3, v_max=10, fo_max=0.5e3)
+    # path='plots/k_2/fc_5/'
+    # sim.simulation(path, relative=True, N=100000, interval=2)
 
 
 

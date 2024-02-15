@@ -1,0 +1,153 @@
+\begin{tikzpicture}
+\definecolor{black28}{RGB}{28,28,28}
+\definecolor{brown1814888}{RGB}{181,48,88}
+\definecolor{burlywood231175145}{RGB}{231,175,145}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkslategray583162}{RGB}{58,31,62}
+\definecolor{indianred21811088}{RGB}{218,110,88}
+\definecolor{purple1194288}{RGB}{119,42,88}
+  \begin{axis}
+    [
+    boxplot/draw direction=y,
+    ylabel={$\mathcal{E}_{f_D}$},
+    xlabel={$\tilde{M}$},
+    ymin=-0.011, ymax=2,
+    ytick distance =0.25,
+    yticklabel style = {/pgf/number format/fixed},
+    cycle list={{purple1194288},{indianred21811088}},
+    xtick={1,2,3,4,5},
+    ymajorgrids,
+    xticklabels={$4$, $6$, $8$, $10$, $12$},
+    %legend style={at={(0.97,0.97)}, anchor=north east, legend cell align=left, align=left, draw=white!15!black},
+    xlabel style={font=\normalsize}, ylabel style={font=\normalsize}, ticklabel style={font=\normalsize},
+    /pgfplots/boxplot/box extend=0.35,
+    %height=3.5cm,
+    %width=6cm,
+    % clip=false
+    ]
+    \matrix[draw,  fill=white] at (4.6,1.7) {  
+        \node [shape=rectangle, draw=black ,fill=purple1194288, label=right:\normalsize{$f_{\rm c}=\SI{60}{\giga\hertz}$}] {}; \\
+        \node [shape=rectangle, draw=black ,fill=indianred21811088, label=right:\normalsize{$f_{\rm c}=\SI{28}{\giga\hertz}$}] {}; \\
+    };
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.125876058778938,
+	upper quartile=0.524436574531308,
+	lower quartile=0.0426463547666536,
+	upper whisker=1.24630789623736,
+	lower whisker=2.49735097811507e-06,
+	draw position=0.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.210108830153332,
+	upper quartile=0.843596748989113,
+	lower quartile=0.0694756662227288,
+	upper whisker=2.00196666314387,
+	lower whisker=4.56625692932551e-05,
+	draw position=1.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0586126612729322,
+	upper quartile=0.153398316921712,
+	lower quartile=0.0246603300645854,
+	upper whisker=0.346438696135426,
+	lower whisker=8.03252842798825e-06,
+	draw position=1.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0964413466870679,
+	upper quartile=0.246794339115136,
+	lower quartile=0.0403980961217436,
+	upper whisker=0.555528931426893,
+	lower whisker=1.27350433518209e-05,
+	draw position=2.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0476301290470626,
+	upper quartile=0.110510759518501,
+	lower quartile=0.0203673141285585,
+	upper whisker=0.245699451427734,
+	lower whisker=1.75191831700736e-05,
+	draw position=2.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0795486643593998,
+	upper quartile=0.182486270171202,
+	lower quartile=0.0334093071577886,
+	upper whisker=0.404785724911511,
+	lower whisker=1.40081794721063e-05,
+	draw position=3.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0446558088944626,
+	upper quartile=0.101531580392049,
+	lower quartile=0.0194180784650688,
+	upper whisker=0.224684299170059,
+	lower whisker=1.26120741426953e-05,
+	draw position=3.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0730433361458886,
+	upper quartile=0.16523921382414,
+	lower quartile=0.0314947044178425,
+	upper whisker=0.365574913938973,
+	lower whisker=2.18198225940684e-05,
+	draw position=4.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.042890645194285,
+	upper quartile=0.0986688397853364,
+	lower quartile=0.0190255776100809,
+	upper whisker=0.218032202503428,
+	lower whisker=1.88373546087121e-06,
+	draw position=4.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=0.0696278610778166,
+	upper quartile=0.152451745566437,
+	lower quartile=0.0312081118832981,
+	upper whisker=0.334172344264848,
+	lower whisker=4.32449047678929e-06,
+	draw position=5.2
+},
+] coordinates {};
+\end{axis}
+\end{tikzpicture}
