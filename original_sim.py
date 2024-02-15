@@ -56,7 +56,7 @@ class Simulation():
         return n_zetas  
 
 
-    def solve_system(self,n_phases, n_zetas, new=True,):
+    def solve_system(self,n_phases, n_zetas, new=True):
         """
             n_zetas: noisy angle of arrivals;
             n_phases: noisy measured phases;
@@ -128,12 +128,12 @@ class Simulation():
         for i in range(len(self.zetas)-1):
             self.phases[i+1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.zetas[i+1]-self.eta)+(k*self.f_off[k]-(k-1)*self.f_off[k-1])))#%(2*np.pi)
         self.phases[-1] = (2*np.pi*self.T*(self.v/self.l*np.cos(self.eta)+(k*self.f_off[k]-(k-1)*self.f_off[k-1])))#%(2*np.pi)
-        for i,p in enumerate(self.phases):
-            if p<-np.pi or p>np.pi:
-                print('PHASE AMBIGUITY p=' + str(np.rad2deg(p)) + '°') 
-                print('delta CFO='+str(k*self.f_off[k]-(k-1)*self.f_off[k-1]))
+        # for i,p in enumerate(self.phases):
+        #     if p<-np.pi or p>np.pi:
+        #         print('PHASE AMBIGUITY p=' + str(np.rad2deg(p)) + '°') 
+        #         print('delta CFO='+str(k*self.f_off[k]-(k-1)*self.f_off[k-1]))
     
-    def compute_input(self, interval, k:int):
+    def compute_input(self, interval, k_ind:int):
         """
         Computes realistic values of: \n measured phases, angle of arrivals, and variables. 
         """
@@ -151,7 +151,7 @@ class Simulation():
                 self.f_off[i] = self.f_off[i-1] + np.random.normal(0,std_w)
         self.zetas = np.random.uniform(-np.pi/4,np.pi/4,len(self.zetas))
         self.eta = np.random.uniform(0,2*np.pi)
-        self.compute_phases(k=k)
+        self.compute_phases(k=k_ind)
     
     def update_input(self, k):
         self.f_off[0] = self.f_off[1] # f_off at time (k-1)
@@ -211,23 +211,21 @@ class Simulation():
                 v_error = []
                 counter = 0
                 samples = 0
-                for i in tqdm(range(N)):
+                for j in tqdm(range(N)):
                     etas_n = []
                     f_ds_n = []
                     f_ds_n_c = []
                     vs_n = []
                     phases = []
-                    mod_phases = []
                     f_off = []
                     for i in range(1,interval):
                         if i==1:
-                            phases.append(self.compute_input(k=i))
-                            mod_phases.append(self.phases)
+                            self.compute_input(interval,k=i)
                         else:
-                            phases.append(self.update_input(k=i))
-                            f_off.append(i*self.f_off[1]-(i-1)*self.f_off[0])
-                            mod_phases.append(self.phases)
-                        n_phases, n_c_phases = self.add_noise_phase(noise, phase_std)
+                            self.compute_phases(k=i)
+                        n_phases = self.add_noise_phase(noise, phase_std)
+                        phases.append(n_phases)
+                        f_off.append(i*self.f_off[i]-(i-1)*self.f_off[i-1])
                         n_zetas = self.add_noise_aoa(noise, z_std)
                         if len(self.phases)!=4 or self.ambiguity:
                             x0 = [self.fd_max/4,2,np.pi/3,self.fo_max/2] # [f_d(0), v(0), eta(0), f_off(0)]
@@ -241,27 +239,19 @@ class Simulation():
                             vs_n.append(results.x[1])
                         else:
                             eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
-                            eta_n, f_d_n_c, v_n = self.solve_system(n_c_phases, n_zetas, new=True)
+                            #eta_n, f_d_n_c, v_n = self.solve_system(n_c_phases, n_zetas, new=True)
                             etas_n.append(eta_n)
                             #if f_d_n<(self.fd_max*2) and f_d_n>-(self.fd_max*2):
                             f_ds_n.append(f_d_n)
-                            f_ds_n_c.append(f_d_n_c)
+                            #f_ds_n_c.append(f_d_n_c)
                             vs_n.append(v_n)
                     phases = np.stack(phases)
-                    mod_phases = np.stack(mod_phases)
-                    corrected_phase = np.zeros(len(mod_phases[:,0]))
-                    for i,p in enumerate(mod_phases):
-                        if p[0]>np.pi:
-                            corrected_phase[i]=p[0]-(2*np.pi)
-                        else:
-                            corrected_phase[i]=p[0]
-                    plt.stem(f_off)
-                    plt.figure()
+                    
+                    # plt.stem(f_off)
+                    # plt.figure()
                     plt.stem(phases[:,0],markerfmt='D')
-                    plt.stem(mod_phases[:,0],'r')
-                    plt.stem(corrected_phase,'y')
                     plt.stem((f_ds_n-np.ones(len(f_ds_n))*self.f_d)/self.f_d,'g')
-                    plt.legend(['uw phase','mod phase', 'corrected phase', 'relative fD err'])
+                    plt.legend(['phase', 'relative fD err'])
                     plt.grid()
                     plt.show()
                     
@@ -277,7 +267,7 @@ class Simulation():
             else:
                 return tot_f_d_error,tot_eta_error,tot_v_error
                 
-    def simulation(self, path, relative, interval=100, N=10000, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True, plot=True):
+    def simulation(self, path, relative=True, interval=100, N=10000, zeta_std = [1,3,5], SNR = [0,5,10,15], noise=True, only_fD=True, plot=True):
         # N is the number of simulations
         # interval is the number of samples in which variables can be considered constant 
         SNR = np.array(SNR)
@@ -286,7 +276,10 @@ class Simulation():
         mean_estimator = MeanEstimator()
         if not only_fD:
             ransac = RANSACRegressor(estimator=mean_estimator, min_samples=10, max_trials=400)
-        ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=20, max_trials=200)
+        if interval>20:
+            ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=20, max_trials=200)
+        elif interval!=2:
+            ransac_fd = RANSACRegressor(estimator=mean_estimator, min_samples=int(interval/2), max_trials=200)
         for z_std in np.deg2rad(zeta_std):
             tot_eta_error = []
             tot_f_d_error = []
@@ -298,13 +291,13 @@ class Simulation():
                 v_error = []
                 counter = 0
                 samples = 0
-                for i in tqdm(range(N),dynamic_ncols=True):
+                for j in tqdm(range(N),dynamic_ncols=True):
                     etas_n = []
                     f_ds_n = []
                     vs_n = []
                     for i in range(1,interval):
                         if i==1:
-                            self.compute_input(interval,k=i)
+                            self.compute_input(interval,k_ind=i)
                         else:
                             self.compute_phases(k=i)
                         n_phases = self.add_noise_phase(noise, phase_std)
@@ -316,8 +309,8 @@ class Simulation():
                             else:
                                 results = least_squares(self.system, x0, args=(n_phases, n_zetas))
                             etas_n.append(results.x[2])
-                            if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
-                                f_ds_n.append(results.x[0])
+                            #if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
+                            f_ds_n.append(results.x[0])
                             vs_n.append(results.x[1])
                         else:
                             eta_n, f_d_n, v_n = self.solve_system(n_phases, n_zetas, new=True)
@@ -339,6 +332,12 @@ class Simulation():
                         pred_f_d = np.mean(f_ds_n)
                     if relative:
                         f_d_error.append(np.abs((self.f_d-np.mean(pred_f_d))/self.f_d))
+
+                        # if np.abs((self.f_d-np.mean(pred_f_d))/self.f_d)>10:
+                        #     print('angles of arrivals')
+                        #     print(np.rad2deg(self.zetas))
+                        #     print('2 eta')
+                        #     print(np.rad2deg((self.eta*2)%(2*np.pi)))
                     else:
                         f_d_error.append(np.abs(self.f_d-np.mean(pred_f_d)))
                     if not only_fD:
@@ -389,21 +388,23 @@ class Simulation():
                 else:
                     return tot_f_d_error,tot_eta_error,tot_v_error
 if __name__=='__main__':
-
-    ### fc = 60 GHz ###
-    sim = Simulation(T=0.05e-3, fo_max=6e3)
-    path='plots/fc_60/2_static/'
-    sim.simulation(path, relative=True, interval=50)
     
-    ### fc = 28 GHz ### 
-    sim = Simulation(l=0.0107, T=0.075e-3, v_max=10, fo_max=2.8e3)
-    path='plots/fc_28/2_static/'
-    sim.simulation(path, relative=True, interval=50)
+    # ### fc = 60 GHz ###
+    # sim = Simulation(T=0.05e-3, fo_max=6e3)
+    # path='plots/k_2/fc_60/'
+    # #path='plots/test/'
+    # sim.simulation(path, relative=True, N=100000, interval=2)
+    
+    # ### fc = 28 GHz ### 
+    # sim = Simulation(l=0.0107, T=0.075e-3, v_max=10, fo_max=2.8e3)
+    # path='plots/k_2/fc_28/'
+    # sim.simulation(path, relative=True, N=100000, interval=2)
 
     ### fc = 5 GHz ###
     sim = Simulation(l=0.06, T=0.09e-3, v_max=10, fo_max=0.5e3)
-    path='plots/fc_5/2_static/'
-    sim.simulation(path, relative=True, interval=50)
+    path='plots/k_2/fc_5/'
+    sim.simulation(path, relative=True, N=100000, interval=2)
+
 
 
     

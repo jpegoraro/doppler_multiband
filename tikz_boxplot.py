@@ -1,7 +1,11 @@
 import shutil
 
-def tikz_boxplot(input_file, name, n_box, intro):
-    if intro:
+def tikz_boxplot(input_file, name, n_box):
+    try:
+        f = open(name, 'r')
+        if f.readline()=='\\begin{tikzpicture}':
+            shutil.copyfile('input.txt',name)
+    except:
         shutil.copyfile('input.txt',name)
     f_w = open(name, 'a')
     boxplot = []
@@ -49,5 +53,6 @@ def tikz_boxplot(input_file, name, n_box, intro):
         f_w.write('] coordinates {};\n')
     f_w.write('\\end{axis}\n')
     f_w.write('\\end{tikzpicture}')
+    f_w.close()
 
-tikz_boxplot('plots/fc_5/2_static/old/fd_errors_zeta_std5.0.tex','test.tex',4,intro=False)
+tikz_boxplot('plots/k_2/fc_28/varyingns_28GHz.tex','plots/k_2/varying_M.tex',5)
