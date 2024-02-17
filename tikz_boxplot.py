@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('plots/varying_k/varyingk_60GHz.tex','plots/varying_k/varying_k.tex',6)
+tikz_boxplot('plots/fc_60/fd_errors_zeta_std5.0.tex','plots/fc_28/fd_error.tex',1)
