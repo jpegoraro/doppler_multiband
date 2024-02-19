@@ -125,11 +125,8 @@ class Simulation():
         """
             Solve the system for the received input parameters and returned the computed phases.
         """
-        if init:
-            j=0
-        else:
-            j=1
-            self.phases[:,0] = self.phases[:,1]
+        j=1
+        self.phases[:,0] = self.phases[:,1]
         self.phases[0,j] = (2*np.pi*self.T*k*(self.f_d+(self.v/self.l*np.cos(self.zetas[0]-self.eta))+self.f_off))#%(2*np.pi)
         for i in range(len(self.zetas)-1):
             self.phases[i+1,j] = (2*np.pi*self.T*k*(self.v/self.l*np.cos(self.zetas[i+1]-self.eta)+self.f_off))#%(2*np.pi)
@@ -244,7 +241,10 @@ class Simulation():
                         results = least_squares(self.system, x0, args=(phase_diff, n_zetas))
                     etas_n.append(results.x[2])
                     #if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
-                    f_d_error.append(results.x[0])
+                    if relative:
+                        f_d_error.append(np.abs((self.f_d-np.mean(results.x[0]))/self.f_d))
+                    else:
+                        f_d_error.append(np.abs(self.f_d-np.mean(results.x[0])))
                     vs_n.append(results.x[1])
                     
                 print(str(counter) + ' ransac fD exceptions')
@@ -255,7 +255,7 @@ class Simulation():
                 tot_f_d_error.append(f_d_error)
             if plot:
                 if relative:    
-                    self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_t'+str(self.T)) #zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+                    self.boxplot_plot(path, tot_f_d_error, "SNR (dB)", "relative frequency Doppler errors", 10*np.log10(SNR), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
                     if not only_fD:
                         self.boxplot_plot(path, tot_eta_error, "SNR (dB)", "relative eta errors", 10*np.log10(SNR), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
                         self.boxplot_plot(path, tot_v_error, "SNR (dB)", "relative speed error", 10*np.log10(SNR), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
@@ -275,7 +275,7 @@ if __name__=='__main__':
 
     ### fc = 60 GHz ###
     sim = Simulation(T=0.05e-3, fo_max=6e3)
-    path='plots/varying_T/fc_60/'
+    path='plots/new_sim/'
     #path='plots/test/'
     sim.simulation(path, relative=True, interval=500)
     

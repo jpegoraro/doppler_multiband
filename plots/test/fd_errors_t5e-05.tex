@@ -8,7 +8,7 @@
 \begin{axis}[
 tick align=outside,
 tick pos=left,
-title={frequency Doppler errors with zeta std = 5°},
+title={frequency Doppler errors with zeta std = 1°},
 x grid style={darkgray176},
 xlabel={SNR (dB)},
 xmin=-0.5, xmax=0.5,
@@ -18,40 +18,40 @@ xticklabels={10.0},
 y grid style={darkgray176},
 ylabel={relative frequency Doppler errors},
 ymajorgrids,
-ymin=-0.00606936005324245, ymax=0.127484379982049,
+ymin=-0.0215796827667757, ymax=0.453341155585451,
 ytick style={color=black}
 ]
 \path [draw=darkslategray69, fill=brown1814888, semithick]
-(axis cs:-0.4,0.0045579040415196)
---(axis cs:0.4,0.0045579040415196)
---(axis cs:0.4,0.0513097834455038)
---(axis cs:-0.4,0.0513097834455038)
---(axis cs:-0.4,0.0045579040415196)
+(axis cs:-0.4,0.0154365984023001)
+--(axis cs:0.4,0.0154365984023001)
+--(axis cs:0.4,0.182140474710517)
+--(axis cs:-0.4,0.182140474710517)
+--(axis cs:-0.4,0.0154365984023001)
 --cycle;
 \addplot [semithick, darkslategray69]
 table {%
-0 0.0045579040415196
-0 1.26449381624788e-06
+0 0.0154365984023001
+0 7.62806741644915e-06
 };
 \addplot [semithick, darkslategray69]
 table {%
-0 0.0513097834455038
-0 0.12141375543499
+0 0.182140474710517
+0 0.431753844751259
 };
 \addplot [semithick, darkslategray69]
 table {%
--0.2 1.26449381624788e-06
-0.2 1.26449381624788e-06
+-0.2 7.62806741644915e-06
+0.2 7.62806741644915e-06
 };
 \addplot [semithick, darkslategray69]
 table {%
--0.2 0.12141375543499
-0.2 0.12141375543499
+-0.2 0.431753844751259
+0.2 0.431753844751259
 };
 \addplot [semithick, darkslategray69]
 table {%
--0.4 0.0137588699030109
-0.4 0.0137588699030109
+-0.4 0.0554412435736699
+0.4 0.0554412435736699
 };
 \end{axis}
 
