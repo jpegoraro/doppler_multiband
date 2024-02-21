@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('plots/new_sim/varying_path/interval_100/fc_60/varyingns_60GHz.tex','plots/new_sim/varying_path/interval_100/fd_error.tex',5)
+tikz_boxplot('plots/new_sim/2_static/p_std/fd_errors_zeta_std1.0.tex','plots/new_sim/2_static/p_std/fd_error.tex',4)

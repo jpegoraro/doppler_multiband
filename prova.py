@@ -35,13 +35,12 @@ from new_simulation import Simulation
 #             tot_f_d_error.append(sim.simulation(path+'fc_'+str(f)+'/',relative=True,zeta_std=[5],phase_std=[5],save=True,plot=False,N=10000,interval=inter))
 #         sim.boxplot_plot(path+'fc_'+str(f)+'/', tot_f_d_error,'M','fD error', [4,6,8,10,12], 'varying ns', 'varyingns_'+str(f)+'GHz')
 
-paths = ['plots/new_sim/2_static/','plots/new_sim/6_static/']
-for inter in [100,200]:
-    for f in [28,60]:
+path = 'plots/new_sim/4_static/'
+for inter in [200]:
+    for f in [60,28]:
         print('carrier frequency: ' + str(f) + ' GHz')
         tot_f_d_error = []
-        for i,ns in enumerate([2,6]):
-            path = paths[i]
+        for i,ns in enumerate([4]):
             print('ns= ' + str(ns))
             if f==60:
                 ### fc = 60 GHz ###
@@ -49,4 +48,4 @@ for inter in [100,200]:
             if f==28:
                 ### fc = 28 GHz ### 
                 sim = Simulation(l=0.0107, T=0.08e-3, v_max=10, fo_max=2.8e3, n_static=ns)
-            tot_f_d_error.append(sim.simulation(path+'fc_'+str(f)+'/interval_'+str(inter)+'/',relative=True,zeta_std=[5],save=True,plot=True,N=10000,interval=inter))
+            tot_f_d_error.append(sim.simulation(path+'fc_'+str(f)+'/interval_'+str(inter)+'/',relative=True,zeta_std=[5],phase_std=[10,5,2.5,1],save=True,plot=True,N=10000,interval=inter))

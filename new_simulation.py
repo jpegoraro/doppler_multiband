@@ -188,7 +188,7 @@ class Simulation():
             print('phase problem')
         
                 
-    def simulation(self, path, relative=True, interval=100, N=10000, zeta_std = [1,3,5], phase_std = [1,2.5,5,10], save=False, use_ransac=False, sub_interval=None, noise=True, only_fD=True, plot=True):
+    def simulation(self, path, relative=True, interval=100, N=10000, zeta_std = [5,3,1], phase_std = [10,5,2.5,1], save=False, use_ransac=False, sub_interval=None, noise=True, only_fD=True, plot=True):
         # N is the number of simulations
         # interval is the number of samples in which variables can be considered constant 
         equiv_snr = 10*np.log10(1/(2*256*np.power(np.deg2rad(phase_std),2)))
@@ -319,7 +319,7 @@ class Simulation():
                     tot_v_error.append(v_error)
                 tot_f_d_error.append(f_d_error)
                 if save:
-                    np.save(path+'fd_k'+str(interval)+'_ns'+str(self.n_static)+'_pstd'+str(np.rad2deg(p_std))+'.npy',f_d_error)
+                    np.save(path+'fd_k'+str(interval)+'_ns'+str(self.n_static)+'_pstd'+str(np.rad2deg(p_std))+'_zstd'+str(np.rad2deg(z_std))+'.npy',f_d_error)
             if plot:
                 if relative:    
                     self.boxplot_plot(path, tot_f_d_error, "phase std [°]", "relative frequency Doppler errors", np.rad2deg(phase_std), "frequency Doppler errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'fd_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
@@ -342,9 +342,9 @@ if __name__=='__main__':
 
     ### fc = 60 GHz ###
     sim = Simulation(T=0.08e-3, fo_max=6e3, n_static=2)
-    path='plots/new_sim/2_static/mix/'
+    path='plots/new_sim/2_static/p_std/'
     #path='plots/test/'
-    sim.simulation(path, relative=True, noise=True, N=10000, interval=500)
+    sim.simulation(path, relative=True, noise=True, N=10000, interval=200, save=True)
     
     ### fc = 28 GHz ### 
     # sim = Simulation(l=0.0107, T=t*1e-3, v_max=10, fo_max=2.8e3, n_static=4, ambiguity=True)
