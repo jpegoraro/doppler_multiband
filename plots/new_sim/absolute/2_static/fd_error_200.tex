@@ -1,0 +1,124 @@
+\begin{tikzpicture}
+\definecolor{black28}{RGB}{28,28,28}
+\definecolor{brown1814888}{RGB}{181,48,88}
+\definecolor{burlywood231175145}{RGB}{231,175,145}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkslategray583162}{RGB}{58,31,62}
+\definecolor{indianred21811088}{RGB}{218,110,88}
+\definecolor{purple1194288}{RGB}{119,42,88}
+  \begin{axis}
+    [
+    boxplot/draw direction=y,
+    ylabel={$\mathcal{E}_{f_D}$},
+    xlabel={SNR, $\Lambda$ [dB]},
+    ymin=-0.011, ymax=0.7,
+    ytick distance =0.1,
+    yticklabel style = {/pgf/number format/fixed},
+    cycle list={{purple1194288},{brown1814888},{indianred21811088}},
+    xtick={1,2,3,4},
+    ymajorgrids,
+    xticklabels={$0$, $5$, $10$, $15$},
+    %legend style={at={(0.97,0.97)}, anchor=north east, legend cell align=left, align=left, draw=white!15!black},
+    xlabel style={font=\normalsize}, ylabel style={font=\normalsize}, ticklabel style={font=\normalsize},
+    /pgfplots/boxplot/box extend=0.25,
+    height=3.5cm,
+    width=6cm,
+    % clip=false
+    ]
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=52.1362128054399,
+	upper quartile=107.877727675055,
+	lower quartile=22.6579839203743,
+	upper whisker=235.317834092053,
+	lower whisker=0.00230239440455193,
+	draw position=1.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=52.0701401721182,
+	upper quartile=107.359299805684,
+	lower quartile=22.5918695804383,
+	upper whisker=234.447188450817,
+	lower whisker=0.00236425896434866,
+	draw position=0.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=28.0446919470605,
+	upper quartile=64.0059233477432,
+	lower quartile=12.2858907137384,
+	upper whisker=141.378745890918,
+	lower whisker=0.00327753333590408,
+	draw position=2.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=28.3104077515745,
+	upper quartile=64.9592011735609,
+	lower quartile=12.6660072425266,
+	upper whisker=143.338916453962,
+	lower whisker=0.00446898250817185,
+	draw position=1.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=15.5539512903576,
+	upper quartile=37.6038207835681,
+	lower quartile=6.84693605498801,
+	upper whisker=83.6973905805548,
+	lower whisker=0.000708966444449288,
+	draw position=3.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=15.2027017092439,
+	upper quartile=39.3105664695481,
+	lower quartile=6.59839614765662,
+	upper whisker=88.3771044834186,
+	lower whisker=0.00528354985780766,
+	draw position=2.8
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=7.39183768231453,
+	upper quartile=20.9685335216576,
+	lower quartile=3.03537228087399,
+	upper whisker=47.8665442395575,
+	lower whisker=0.00250417387474045,
+	draw position=4.2
+},
+] coordinates {};
+
+\addplot+[
+fill, draw=black,
+boxplot prepared={
+	median=7.0036064756317,
+	upper quartile=19.214378972157,
+	lower quartile=2.90042721556942,
+	upper whisker=43.6115643348601,
+	lower whisker=0.0021515980321567,
+	draw position=3.8
+},
+] coordinates {};
+\end{axis}
+\end{tikzpicture}

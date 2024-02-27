@@ -1,0 +1,223 @@
+% This file was created with tikzplotlib v0.10.1.
+\begin{tikzpicture}
+
+\definecolor{black26}{RGB}{26,26,26}
+\definecolor{brown1544291}{RGB}{154,42,91}
+\definecolor{burlywood233183155}{RGB}{233,183,155}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkslategray1014183}{RGB}{101,41,83}
+\definecolor{darkslategray502957}{RGB}{50,29,57}
+\definecolor{indianred2037284}{RGB}{203,72,84}
+\definecolor{salmon222129101}{RGB}{222,129,101}
+
+\begin{axis}[
+tick align=outside,
+tick pos=left,
+title={varying k},
+x grid style={darkgray176},
+xlabel={interval [ms]},
+xmin=-0.5, xmax=5.5,
+xtick style={color=black},
+xtick={0,1,2,3,4,5},
+xticklabels={2,4,8,16,32,48},
+y grid style={darkgray176},
+ylabel={fD error},
+ymajorgrids,
+ymin=-15.3939900637815, ymax=323.275765813465,
+ytick style={color=black}
+]
+\path [draw=black26, fill=darkslategray502957, semithick]
+(axis cs:-0.4,32.5683843998318)
+--(axis cs:0.4,32.5683843998318)
+--(axis cs:0.4,142.844672108357)
+--(axis cs:-0.4,142.844672108357)
+--(axis cs:-0.4,32.5683843998318)
+--cycle;
+\path [draw=black26, fill=darkslategray1014183, semithick]
+(axis cs:0.6,23.7738771952047)
+--(axis cs:1.4,23.7738771952047)
+--(axis cs:1.4,112.196702920373)
+--(axis cs:0.6,112.196702920373)
+--(axis cs:0.6,23.7738771952047)
+--cycle;
+\path [draw=black26, fill=brown1544291, semithick]
+(axis cs:1.6,16.409576546204)
+--(axis cs:2.4,16.409576546204)
+--(axis cs:2.4,82.6081900357988)
+--(axis cs:1.6,82.6081900357988)
+--(axis cs:1.6,16.409576546204)
+--cycle;
+\path [draw=black26, fill=indianred2037284, semithick]
+(axis cs:2.6,12.5300550705826)
+--(axis cs:3.4,12.5300550705826)
+--(axis cs:3.4,64.2173047527882)
+--(axis cs:2.6,64.2173047527882)
+--(axis cs:2.6,12.5300550705826)
+--cycle;
+\path [draw=black26, fill=salmon222129101, semithick]
+(axis cs:3.6,9.18678290983877)
+--(axis cs:4.4,9.18678290983877)
+--(axis cs:4.4,50.5433210189252)
+--(axis cs:3.6,50.5433210189252)
+--(axis cs:3.6,9.18678290983877)
+--cycle;
+\path [draw=black26, fill=burlywood233183155, semithick]
+(axis cs:4.6,7.82017811193752)
+--(axis cs:5.4,7.82017811193752)
+--(axis cs:5.4,44.1219922044726)
+--(axis cs:4.6,44.1219922044726)
+--(axis cs:4.6,7.82017811193752)
+--cycle;
+\addplot [semithick, black26]
+table {%
+0 32.5683843998318
+0 0.0133574936022569
+};
+\addplot [semithick, black26]
+table {%
+0 142.844672108357
+0 307.881686000863
+};
+\addplot [semithick, black26]
+table {%
+-0.2 0.0133574936022569
+0.2 0.0133574936022569
+};
+\addplot [semithick, black26]
+table {%
+-0.2 307.881686000863
+0.2 307.881686000863
+};
+\addplot [semithick, black26]
+table {%
+1 23.7738771952047
+1 0.00838038909535044
+};
+\addplot [semithick, black26]
+table {%
+1 112.196702920373
+1 244.808743204015
+};
+\addplot [semithick, black26]
+table {%
+0.8 0.00838038909535044
+1.2 0.00838038909535044
+};
+\addplot [semithick, black26]
+table {%
+0.8 244.808743204015
+1.2 244.808743204015
+};
+\addplot [semithick, black26]
+table {%
+2 16.409576546204
+2 0.00320490467981926
+};
+\addplot [semithick, black26]
+table {%
+2 82.6081900357988
+2 181.619890790194
+};
+\addplot [semithick, black26]
+table {%
+1.8 0.00320490467981926
+2.2 0.00320490467981926
+};
+\addplot [semithick, black26]
+table {%
+1.8 181.619890790194
+2.2 181.619890790194
+};
+\addplot [semithick, black26]
+table {%
+3 12.5300550705826
+3 8.97488206419439e-05
+};
+\addplot [semithick, black26]
+table {%
+3 64.2173047527882
+3 141.661577798299
+};
+\addplot [semithick, black26]
+table {%
+2.8 8.97488206419439e-05
+3.2 8.97488206419439e-05
+};
+\addplot [semithick, black26]
+table {%
+2.8 141.661577798299
+3.2 141.661577798299
+};
+\addplot [semithick, black26]
+table {%
+4 9.18678290983877
+4 0.000407998209595917
+};
+\addplot [semithick, black26]
+table {%
+4 50.5433210189252
+4 112.320480483456
+};
+\addplot [semithick, black26]
+table {%
+3.8 0.000407998209595917
+4.2 0.000407998209595917
+};
+\addplot [semithick, black26]
+table {%
+3.8 112.320480483456
+4.2 112.320480483456
+};
+\addplot [semithick, black26]
+table {%
+5 7.82017811193752
+5 0.00726444166907925
+};
+\addplot [semithick, black26]
+table {%
+5 44.1219922044726
+5 98.5028377235965
+};
+\addplot [semithick, black26]
+table {%
+4.8 0.00726444166907925
+5.2 0.00726444166907925
+};
+\addplot [semithick, black26]
+table {%
+4.8 98.5028377235965
+5.2 98.5028377235965
+};
+\addplot [semithick, black26]
+table {%
+-0.4 72.9332468075839
+0.4 72.9332468075839
+};
+\addplot [semithick, black26]
+table {%
+0.6 53.5270268475924
+1.4 53.5270268475924
+};
+\addplot [semithick, black26]
+table {%
+1.6 37.6068316887453
+2.4 37.6068316887453
+};
+\addplot [semithick, black26]
+table {%
+2.6 28.5525861741008
+3.4 28.5525861741008
+};
+\addplot [semithick, black26]
+table {%
+3.6 20.7052003830131
+4.4 20.7052003830131
+};
+\addplot [semithick, black26]
+table {%
+4.6 17.7111103572167
+5.4 17.7111103572167
+};
+\end{axis}
+
+\end{tikzpicture}

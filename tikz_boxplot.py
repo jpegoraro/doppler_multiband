@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('plots/new_sim/2_static/p_std/fd_errors_zeta_std1.0.tex','plots/new_sim/2_static/p_std/fd_error.tex',4)
+tikz_boxplot('plots/new_sim/absolute/6_static/fc_60/interval_200/fd_errors_zeta_std5.0.tex','plots/new_sim/absolute/6_static/fd_error_200.tex',4)
