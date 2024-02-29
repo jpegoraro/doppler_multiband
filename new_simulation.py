@@ -131,7 +131,7 @@ class Simulation():
         """
         Computes realistic values of: \n measured phases, angle of arrivals, and variables. 
         """
-        v_max_sim= self.v_max-2
+        v_max_sim = self.v_max
         self.v = np.random.uniform(0,v_max_sim)
         self.fd_max = 2/self.l*v_max_sim
         self.f_d = np.random.uniform(-self.fd_max,self.fd_max)        
@@ -180,13 +180,53 @@ class Simulation():
         plt.show()
     
     def ambiguity_check(self, diff, phases):
-        if diff.any()<-np.pi or diff.any()>np.pi:
-            print('AMBIGUITY') 
-        a = np.mod(diff,2*np.pi)
-        b = ((phases[:-1,1]%(2*np.pi)-(phases[-1,1]%(2*np.pi)))-(phases[:-1,0]%(2*np.pi)-(phases[-1,0]%(2*np.pi))))%(2*np.pi)
-        if a.any() != b.any():
-            print('phase problem')
+        b = (phases[:-1,1]-phases[-1,1])-(phases[:-1,0]-phases[-1,0])
+        if any(diff!=b):
+            return True
+        else:
+            return False
         
+    def my_mod_2pi(self, phases):
+        """
+            map an array or a matrix of angles [rad] in [-pi,pi].
+        """
+        if phases.ndim==2:
+            for j in range(2):
+                for i,p in enumerate(phases[:,j]):
+                    while p <-np.pi:
+                        p = p+2*np.pi
+                    while p>np.pi:
+                        p = p-2*np.pi
+                    phases[i,j]=p
+        else:
+            for i,p in enumerate(phases):
+                    while p <-np.pi:
+                        p = p+2*np.pi
+                    while p>np.pi:
+                        p = p-2*np.pi
+                    phases[i]=p
+        return phases
+        
+    def plot_mae(self, dataa, path, legend, times):
+        #print(data.shape)
+        m = []
+        s = []
+        for data in dataa:
+            mean = np.mean(data,1)
+            m.append(mean)
+            s.append(np.std(data,1))
+            plt.plot(times, mean)
+        plt.legend(legend)
+        for mean,std in zip(m,s):    
+            low = mean-(std)
+            low[low<0] = 0
+            plt.fill_between(times, low, mean+std, alpha=0.3)
+        plt.grid()
+        plt.xlabel('time (ms)')
+        plt.ylabel('fD mean absolute error')
+        tik.save(path + '.tex')
+        plt.savefig(path + '.png')
+        #plt.show()
                 
     def simulation(self, path, relative=True, interval=100, N=10000, zeta_std = [5,3,1], phase_std = [10,5,2.5,1], save=False, use_ransac=False, sub_interval=None, noise=True, only_fD=True, plot=True):
         # N is the number of simulations
@@ -213,6 +253,7 @@ class Simulation():
                 v_error = []
                 counter = 0
                 samples = 0
+                amb = 0
                 for j in tqdm(range(N),dynamic_ncols=True):
                     etas_n = []
                     f_ds_n = []
@@ -223,17 +264,20 @@ class Simulation():
                     for i in range(2,interval):
                         self.update_input(k=i)
                         phases = self.add_noise_phase(noise, p_std)
+                        mod_phases = self.my_mod_2pi(phases)
                         n_phases = np.zeros(phases.shape)
                         n_zetas = self.add_noise_aoa(noise, z_std)
                         zetas.append(n_zetas)
                         ### remove LoS from other paths ###
                         for p in range(phases.shape[0]):
                             for t in range(2):
-                                n_phases[p,t] = phases[p,t] - phases[-1,t]
+                                n_phases[p,t] = mod_phases[p,t] - mod_phases[-1,t]
                         ### phase difference ###
                         diff = n_phases[:-1,1] - n_phases[:-1,0]
+                        diff = self.my_mod_2pi(diff)
+                        # if self.ambiguity_check(diff,phases):
+                        #     amb+=1
                         phase_diff.append(diff)
-                        self.ambiguity_check(diff,phases)
                         if use_ransac:
                             eta,f_d,v = self.solve_system(diff, n_zetas) 
                             x0 = [f_d, v, eta]
@@ -313,7 +357,8 @@ class Simulation():
                             vs_n.append(results.x[1])
                     
                 print(str(counter) + ' ransac fD exceptions')
-                print('average number of considered samples: ' + str(samples/N))    
+                print('average number of considered samples: ' + str(samples/N))
+                #print('average number of ambiguities in ' + str(interval) + ' samples: ' + str(amb/N))    
                 if not only_fD:
                     tot_eta_error.append(eta_error)
                     tot_v_error.append(v_error)
@@ -331,21 +376,20 @@ class Simulation():
                     if not only_fD:
                         self.boxplot_plot(path, tot_v_error, "phase std [°]", "speed error (m/s)", np.rad2deg(phase_std), "speed errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'speed_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
                         self.boxplot_plot(path, tot_eta_error, "phase std [°]", "eta errors (°)", np.rad2deg(phase_std), "eta errors with zeta std = " + str(round(np.rad2deg(z_std))) + "°", 'eta_errors_zeta_std' + str(np.round(np.rad2deg(z_std),1)))
+            if only_fD:
+                return tot_f_d_error
             else:
-                if only_fD:
-                    return tot_f_d_error
-                else:
-                    return tot_f_d_error,tot_eta_error,tot_v_error
+                return tot_f_d_error,tot_eta_error,tot_v_error
     
     
 if __name__=='__main__':
 
     ### fc = 60 GHz ###
-    sim = Simulation(T=0.08e-3, fo_max=6e3, n_static=2)
-    path='plots/new_sim/2_static/p_std/'
-    #path='plots/test/'
-    sim.simulation(path, relative=True, noise=True, N=10000, interval=200, save=True)
-    
+    sim = Simulation(T=0.08e-3, fo_max=60e3, n_static=2)
+    #path='plots/new_sim/2_static/p_std/'
+    path='plots/test/'
+    err = sim.simulation(path, relative=True, noise=True,zeta_std=[5], phase_std=[5], N=1000, interval=200, save=False)
+    print(np.mean(err))
     ### fc = 28 GHz ### 
     # sim = Simulation(l=0.0107, T=t*1e-3, v_max=10, fo_max=2.8e3, n_static=4, ambiguity=True)
     # path='plots/varying_T/fc_28/'
