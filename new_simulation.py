@@ -8,7 +8,7 @@ from scipy.optimize import least_squares
 import tikzplotlib as tik
 
 class Simulation():
-    def __init__(self, l=0.005, T=0.25e-3, v_max=5, fo_max=6e3, alpha=1, n_static=2, ambiguity=False):
+    def __init__(self, l=0.005, T=0.08e-3, v_max=5, fo_max=6e3, alpha=1, n_static=2, ambiguity=False, fd_min=None):
         """
             Default values for a 60 GHz carrier frequency system, which can measure frequency Doppler shift 
             caused by a motion of at most 5 m/s.
@@ -22,6 +22,7 @@ class Simulation():
         self.alpha = alpha
         self.ambiguity = ambiguity
         self.std_w = 0
+        self.fd_min = fd_min
 
         # simulation unknowns
         self.eta = 0
@@ -134,7 +135,12 @@ class Simulation():
         v_max_sim = self.v_max
         self.v = np.random.uniform(0,v_max_sim)
         self.fd_max = 2/self.l*v_max_sim
-        self.f_d = np.random.uniform(-self.fd_max,self.fd_max)        
+        if self.fd_min==None: 
+            self.fd_min = 0.2/self.l 
+        if np.random.uniform()<0.5:
+            self.f_d = np.random.uniform(-self.fd_max,-self.fd_min)
+        else:
+            self.f_d = np.random.uniform(self.fd_min,self.fd_max)
         k = int(1e-3/self.T)
         self.std_w = self.fo_max/(3*np.sqrt(k**3))
         self.f_off = np.random.normal(0,self.std_w)
@@ -223,7 +229,7 @@ class Simulation():
             plt.fill_between(times, low, mean+std, alpha=0.3)
         plt.grid()
         plt.xlabel('time (ms)')
-        plt.ylabel('fD mean absolute error')
+        plt.ylabel('fD mean relative error')
         tik.save(path + '.tex')
         plt.savefig(path + '.png')
         #plt.show()
@@ -344,17 +350,22 @@ class Simulation():
                             #x0 = [self.fd_max/4,2,np.pi/3] # [f_d(0), v(0), eta(0)]
                             x0 = [f_d, v, eta]
                             x0 = self.check_initial_values(x0)
-                            if len(self.phases)==4:
+                            if len(self.phases)==4 or len(self.phases)==6:
                                 results = least_squares(self.system, x0, args=(phase_diff, n_zetas), bounds=([-self.fd_max,0,0],[self.fd_max,self.v_max,2*np.pi]))
                             else:
                                 results = least_squares(self.system, x0, args=(phase_diff, n_zetas))
-                                etas_n.append(results.x[2])
                                 #if results.x[0]<(self.fd_max*2) and results.x[0]>-(self.fd_max*2): 
                             if relative:
-                                f_d_error.append(np.abs((self.f_d-np.mean(results.x[0]))/self.f_d))
+                                err = np.abs((self.f_d-np.mean(results.x[0]))/self.f_d)
+                                if err>250:
+                                    print('error: '+str(err))
+                                    print('real fD: '+str(self.f_d))
+                                    print('est. fD: '+str(np.mean(results.x[0])))
+                                f_d_error.append(err)
                             else:
                                 f_d_error.append(np.abs(self.f_d-np.mean(results.x[0])))
-                            vs_n.append(results.x[1])
+                                etas_n.append(results.x[2])
+                                vs_n.append(results.x[1])
                     
                 print(str(counter) + ' ransac fD exceptions')
                 print('average number of considered samples: ' + str(samples/N))
@@ -388,7 +399,7 @@ if __name__=='__main__':
     sim = Simulation(T=0.08e-3, fo_max=60e3, n_static=2)
     #path='plots/new_sim/2_static/p_std/'
     path='plots/test/'
-    err = sim.simulation(path, relative=True, noise=True,zeta_std=[5], phase_std=[5], N=1000, interval=200, save=False)
+    err = sim.simulation(path, relative=True, noise=True,zeta_std=[5], phase_std=[5], N=10000, interval=200, plot=False, save=False)
     print(np.mean(err))
     ### fc = 28 GHz ### 
     # sim = Simulation(l=0.0107, T=t*1e-3, v_max=10, fo_max=2.8e3, n_static=4, ambiguity=True)

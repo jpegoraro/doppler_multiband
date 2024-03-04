@@ -57,7 +57,7 @@ for inter in [200]:
 sim = Simulation(T=0.08e-3, fo_max=60e3, n_static=2)
 path='plots/new_sim/2_static/p_std/'
 #path='plots/test/'
-sim.simulation(path, relative=True, noise=True, N=10000, interval=200, save=True)
+sim.simulation(path, relative=True, noise=True, N=10000, zeta_std=[5], interval=200, save=True)
 
 
         
