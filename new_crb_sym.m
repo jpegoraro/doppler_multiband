@@ -71,7 +71,7 @@ pretty(simplify(invFI(1,1)))
 fd2 = subs(invFI(1,1), [a,b,c], [5*pi/6, pi/4, pi/6]);
 
 
-pretty(simplify(fd2))
+%pretty(simplify(fd2))
 
 
 
