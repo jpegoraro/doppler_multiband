@@ -1,4 +1,4 @@
-from new_simulation import Simulation
+from simulation import Simulation
 import numpy as np
 import matplotlib.pyplot as plt
 

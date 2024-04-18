@@ -18,7 +18,7 @@ def fm(v, eta, T, l, x):
 
 def get_inv_FI_00(load=True):
     if load:
-        for f in os.listdir():
+        for f in os.listdir('CRB'):
             if f=='simp_inv_FI.pkl':
                 with open('simp_inv_FI.pkl', 'rb') as inf:    
                     inv_FI = pickle.loads(inf.read())
@@ -60,37 +60,39 @@ def get_inv_FI_00(load=True):
     FI = sym.Matrix(([A, B, C], [B, E, D], [C, D, F]))
     invFI = FI.inv()
     simp_inv_FI = sym.simplify(sym.trigsimp(invFI[0,0])) # simplified first element
-    with open('simp_inv_FI.pkl', 'wb') as outf:
+    with open('CRB/simp_inv_FI.pkl', 'wb') as outf:
         outf.write(pickle.dumps(simp_inv_FI))
     return simp_inv_FI
 
-# simp_inv_FI = get_inv_FI_00(load=True)
-# sym.pprint(simp_inv_FI)
-# varying_ab = np.zeros((360,360))
-# varying_a = np.zeros(360)
-# for i in range(360):
-#     print("iteration: ", i, end="\r")
-#     for j in range(1,361):
-#         temp = simp_inv_FI.subs({a:np.deg2rad(j),b:np.pi/3,c:np.deg2rad(i),T:0.08e-3,sp:1})
-#         if temp==sym.zoo:
-#             if j==360:
-#                 varying_ab[i,0] = 1e20
-#             else:
-#                 varying_ab[i,j] = 1e20
-#         else:
-#             if j==360:
-#                 varying_ab[i,0] = temp.evalf()
-#             else:
-#                 varying_ab[i,j] = temp.evalf()
-#     # if temp==sym.zoo:
-#     #     varying_a[i] = 1e20
-#     # else:
-#     #     varying_a[i] = temp.evalf()
+def get_crb_heatmap(load=True):
+    simp_inv_FI = get_inv_FI_00(load=load)
+    sym.pprint(simp_inv_FI)
+    varying_ab = np.zeros((360,360))
+    varying_a = np.zeros(360)
+    for i in range(360):
+        print("iteration: ", i, end="\r")
+        for j in range(1,361):
+            temp = simp_inv_FI.subs({a:np.deg2rad(j),b:np.pi/3,c:np.deg2rad(i),T:0.08e-3,sp:1})
+            if temp==sym.zoo:
+                if j==360:
+                    varying_ab[i,0] = 1e20
+                else:
+                    varying_ab[i,j] = 1e20
+            else:
+                if j==360:
+                    varying_ab[i,0] = temp.evalf()
+                else:
+                    varying_ab[i,j] = temp.evalf()
+        # if temp==sym.zoo:
+        #     varying_a[i] = 1e20
+        # else:
+        #     varying_a[i] = temp.evalf()
+    return varying_ab
 
-# #np.save('plots/CRB/varying_ac.npy', varying_ab)
+#np.save('plots/CRB/varying_ac.npy', varying_ab)
 
 
-varying_ab = np.load('plots/CRB/varying_bc.npy')
+varying_ab = np.load('CRB/varying_ac.npy')
 for i in range(360):
     for j in range(360):
         if varying_ab[i,j] > 1e10:
@@ -98,6 +100,7 @@ for i in range(360):
 #plt.plot(varying_a)
 plt.figure()
 sns.heatmap(varying_ab, norm=LogNorm())
-plt.ylabel('AoA static path 1')
+plt.ylabel('AoA static path 2')
+#plt.xlabel('AoA static path 2')
 plt.xlabel('AoA target path')
 plt.show()
