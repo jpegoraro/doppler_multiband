@@ -20,7 +20,7 @@ def get_inv_FI_00(load=True):
     if load:
         for f in os.listdir('CRB'):
             if f=='simp_inv_FI.pkl':
-                with open('simp_inv_FI.pkl', 'rb') as inf:    
+                with open('plots/CRB/simp_inv_FI.pkl', 'rb') as inf:    
                     inv_FI = pickle.loads(inf.read())
                 return inv_FI
     loglike = -(y1 - f1(fD, v, eta, T, l, a))**2 / (2*sp) - (y2 - fm(v, eta, T, l, b))**2 / (2*sp) - (y3 - fm(v, eta, T, l, c))**2 / (2*sp)
