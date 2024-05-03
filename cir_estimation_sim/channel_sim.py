@@ -7,10 +7,9 @@ from scipy.signal import correlate, correlation_lags
 
 class channel_sim():
 
-    def __init__(self,v_rx,eta,fd,G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,os=16,tx=None,rx=None):
+    def __init__(self,v_rx,fd,SNR=50,G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,os=16,tx=None,rx=None):
         """
-            v_rx: receiver speed [m/s]
-            eta: angle between rx speed direction and LoS elongment [rad]
+            v_rx: receiver speed vector (2 components)[m/s]
             fd: Doppler shift caused by target movement [Hz]
             G_tx/G_rx: transmitter/receiver antenna gain
             P_tx: transmitted power
@@ -20,9 +19,10 @@ class channel_sim():
             os: over sampling rate (t' = t / os)
             tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m]
         """
-        self.v_rx = v_rx 
-        self.eta = eta
+        self.v_rx = (v_rx[0]**2+v_rx[1]**2)**(0.5) # speed modulus
+        self.eta = np.arctan(v_rx[1]/v_rx[0]) # speed direction w.r.t. positive x-axis
         self.fd = fd
+        self.SNR = SNR # dB
         self.G_tx = G_tx
         self.G_rx = G_rx
         self.P_tx = P_tx
@@ -37,7 +37,7 @@ class channel_sim():
         self.rx_signal = None
         self.beta = np.zeros(n_static+1)
         self.positions = np.zeros((self.n_static+3,2)) # positions coordinates [rx,tx,t,s1,...,sn_static]
-        self.paths = np.zeros((n_static+2,3)) # [delay, phase, attenuations] for each path [LoS,t,s1,...,sn_static]
+        self.paths = np.zeros((n_static+2,4)) # [delay, phase, attenuations, AoA] for each path [LoS,t,s1,...,sn_static]
         self.h_rrc = rrcosfilter(129, alpha=1, Ts=1/(self.B), Fs=os*self.B)[1] 
 
     def get_positions(self,x_max,y_max,res_min=1,dist_min=0.5,plot=False):
@@ -115,12 +115,16 @@ class channel_sim():
             self.plot_pos()     
 
     def plot_pos(self):
+        print('AoA : LoS, t, s1, s2, ... \n' + str(np.rad2deg(self.paths[:,3])))
         plt.plot(self.positions[0,0],self.positions[0,1],'ro',label='rx')
         plt.plot(self.positions[1,0],self.positions[1,1],'go',label='tx')
         plt.plot(self.positions[2,0],self.positions[2,1],'r+',label='target')
         plt.plot(self.positions[3:,0],self.positions[3:,1],'bo',label='static objects')
+        plt.plot(self.positions[0:2,0],self.positions[0:2,1],label='LoS')
+        for i in range(2,self.n_static+3):
+            plt.plot([self.positions[1,0],self.positions[i,0],self.positions[0,0]],[self.positions[1,1],self.positions[i,1],self.positions[0,1]])
         plt.legend()
-        print('beta angles: tx, s1, s2, ... \n' + str(np.rad2deg(self.beta)))
+        print('beta angles: t, s1, s2, ... \n' + str(np.rad2deg(self.beta)))
         plt.show()
     
     def dist(self, p1, p2):
@@ -154,15 +158,34 @@ class channel_sim():
         for i in range(1,len(self.paths)):
             paths[i] = (self.dist(self.positions[1,:],self.positions[i+1,:])+self.dist(self.positions[i+1,:],self.positions[0,:]))/3e8
         return paths
-
+    
+    def get_AoAs(self):
+        """
+            compute angles of arrival for each path.
+            LoS AoA=0.
+        """
+        m = (self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])
+        q = self.positions[0,1]-m*self.positions[0,0]
+        m1 = -1/m
+        for i in range(1,len(self.paths)):
+            x,y = self.positions[i+1,:]
+            q1 = y-m1*x
+            x_p = (q-q1)/(m1-m)
+            y_p = m*x_p+q
+            c = self.dist([x_p,y_p],self.positions[0,:])
+            ip = self.dist([x,y],self.positions[0,:])
+            assert int(ip**2)==int(c**2+((x-x_p)**2+(y-y_p)**2))
+            self.paths[i,3] = np.arccos(c/ip)
+            
     def get_phases(self):
         """
             compute phases for each path.
-            LoS phase=0.
+            LoS phase initial offset=0.
         """
-        self.paths[1,1] = self.fd
-        for i in range(1,len(self.paths)):
-            self.paths[i,1] = self.paths[i,1] + np.random.uniform(0,2*np.pi)
+        self.paths[0,1] = self.v_rx/self.l*np.cos(self.eta) # LoS
+        self.paths[1,1] = self.fd + self.v_rx/self.l*np.cos(self.paths[1,3]-self.eta) + np.random.uniform(0,2*np.pi) # target
+        for i in range(2,len(self.paths)):
+            self.paths[i,1] = self.v_rx/self.l*np.cos(self.paths[i,3]-self.eta) + np.random.uniform(0,2*np.pi) # static
     
     def get_attenuations(self):
         """
@@ -191,6 +214,7 @@ class channel_sim():
         cir = np.zeros(256).astype(complex)
         t = 1/(self.B*(self.os))
         assert all(self.paths[:,0]==self.get_delays())
+        self.get_AoAs()
         self.get_phases()
         self.get_attenuations()
         delays = np.floor(self.paths[:,0]*self.B*self.os)
@@ -207,11 +231,21 @@ class channel_sim():
         self.up_cir = up_cir
         self.cir = cir
 
+    def gen_noise(self, len):
+        snr_lin = 10 ** (self.SNR / 10)
+        noise_std = np.sqrt(1 ** 2 / snr_lin) # assuming signal amplitude=1
+        noise = np.random.normal(0, noise_std / np.sqrt(2), size=len) + 1j * np.random.normal(
+            0, noise_std / np.sqrt(2), size=len
+        )
+        return noise
+
     def get_rxsignal(self, plot=False):
         """
         """
         filt = np.convolve(self.trn_field.real,self.h_rrc) + 1j*np.convolve(self.trn_field.imag,self.h_rrc)
         rx_signal = np.convolve(filt,self.up_cir)
+        noise = self.gen_noise(len(rx_signal))
+        rx_signal += noise
         rx_signal = np.convolve(rx_signal.real,np.flip(self.h_rrc)) + 1j*np.convolve(rx_signal.imag,np.flip(self.h_rrc))
         # g = np.convolve(self.h_rrc, self.h_rrc)
         # plt.plot(self.h_rrc)
@@ -236,12 +270,16 @@ class channel_sim():
         rrcos_up_Ga = np.convolve(up_Ga.real,self.h_rrc) + 1j*np.convolve(up_Ga.imag,self.h_rrc)
         rcos_up_Ga = np.convolve(rrcos_up_Ga.real,np.flip(self.h_rrc)) + 1j*np.convolve(rrcos_up_Ga.imag,np.flip(self.h_rrc))
         xcorr = np.correlate(up_rx_signal, rcos_up_Ga)[0:256*self.os] # check just for the first peak 
+        #plt.plot(xcorr.real)
+        #plt.show()
         start = np.argmax(xcorr)%self.os
         up_rx_signal = up_rx_signal[start:]
         self.rx_signal = up_rx_signal[::self.os]
         if plot:
             plt.title('Sampling')
-            plt.plot(np.linspace(0, len(self.rx_signal), 16*len(self.rx_signal))[:-8], up_rx_signal[:16*len(self.rx_signal)].real)
+            x = np.linspace(0, len(self.rx_signal), 16*len(self.rx_signal))
+            y = up_rx_signal[:16*len(self.rx_signal)].real
+            plt.plot(x[:-len(x)+len(y)],y)
             plt.stem(self.rx_signal.real, 'r')
             plt.show()
         self.rx_signal = self.rx_signal[int(np.floor(len(self.h_rrc)/2)/self.os)*2:] #compensate for the filters time shift 
@@ -296,7 +334,7 @@ class channel_sim():
 
 if __name__=='__main__':
 
-    ch_sim = channel_sim(v_rx=2,eta=np.pi/4,fd=500)
+    ch_sim = channel_sim(v_rx=[2,1],fd=500)
    
     ch_sim.get_positions(5,5, plot=False)
 
