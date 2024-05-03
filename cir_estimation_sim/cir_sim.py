@@ -151,7 +151,7 @@ if __name__ == "__main__":
         "CFO": np.pi,
         "TOstd": 20,
         "simlen": 10000,
-        "plot": False,
+        "plot": True,
     }
 
     path = Path("cir_estimation_sim")
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         for i in range(params["simlen"]):
             print("iteration: ", i, end="\r")
 
-            npaths = 1#np.random.choice(np.arange(2, 10))
+            npaths = 4#np.random.choice(np.arange(2, 10))
             params["ranges"] = np.zeros(npaths)
             params["ranges"][0] = np.random.uniform(1, 2)
             params["ranges"][1:] = np.sort(
