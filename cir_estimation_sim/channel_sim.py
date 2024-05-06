@@ -39,6 +39,9 @@ class channel_sim():
         self.positions = np.zeros((self.n_static+3,2)) # positions coordinates [rx,tx,t,s1,...,sn_static]
         self.paths = np.zeros((n_static+2,4)) # [delay, phase, attenuations, AoA] for each path [LoS,t,s1,...,sn_static]
         self.h_rrc = rrcosfilter(129, alpha=1, Ts=1/(self.B), Fs=os*self.B)[1] 
+        n = int(1e-3*self.B) # number of samples in 1 ms
+        fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
+        self.std_w = fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max
 
     def get_positions(self,x_max,y_max,res_min=1,dist_min=0.5,plot=False):
         """
@@ -115,6 +118,9 @@ class channel_sim():
             self.plot_pos()     
 
     def plot_pos(self):
+        """
+            plots the environmental disposition.
+        """
         print('AoA : LoS, t, s1, s2, ... \n' + str(np.rad2deg(self.paths[:,3])))
         plt.plot(self.positions[0,0],self.positions[0,1],'ro',label='rx')
         plt.plot(self.positions[1,0],self.positions[1,1],'go',label='tx')
@@ -140,7 +146,7 @@ class channel_sim():
             pos: [x,y] Cartesian coordinates
         """
         ## assume reflection, but no scatter 
-        G_tx = 100 ## assume tx gain equal 20dB
+        G_tx = 10**(25/10) ## assume tx gain equal 25dB
         return (G_tx*self.G_rx*self.l**2*rcs/((4*np.pi)**3*(self.dist(pos,self.positions[0,:])+self.dist(pos,self.positions[1,:]))**2))**(0.5)
     
     def path_loss(self):
@@ -159,7 +165,7 @@ class channel_sim():
             paths[i] = (self.dist(self.positions[1,:],self.positions[i+1,:])+self.dist(self.positions[i+1,:],self.positions[0,:]))/3e8
         return paths
     
-    def get_AoAs(self):
+    def compute_AoAs(self):
         """
             compute angles of arrival for each path.
             LoS AoA=0.
@@ -177,7 +183,7 @@ class channel_sim():
             assert int(ip**2)==int(c**2+((x-x_p)**2+(y-y_p)**2))
             self.paths[i,3] = np.arccos(c/ip)
             
-    def get_phases(self):
+    def compute_phases(self):
         """
             compute phases for each path.
             LoS phase initial offset=0.
@@ -187,7 +193,7 @@ class channel_sim():
         for i in range(2,len(self.paths)):
             self.paths[i,1] = self.v_rx/self.l*np.cos(self.paths[i,3]-self.eta) + np.random.uniform(0,2*np.pi) # static
     
-    def get_attenuations(self):
+    def compute_attenuations(self):
         """
             compute attenuations for each path.
         """
@@ -205,8 +211,9 @@ class channel_sim():
         self.trn_field[::self.os] = trn_unit
         
         
-    def get_cir(self, plot=False):
+    def compute_cir(self, plot=False):
         """
+            compute channel impulse response
         """
         if self.trn_field==None:
             self.load_trn_field()
@@ -214,9 +221,9 @@ class channel_sim():
         cir = np.zeros(256).astype(complex)
         t = 1/(self.B*(self.os))
         assert all(self.paths[:,0]==self.get_delays())
-        self.get_AoAs()
-        self.get_phases()
-        self.get_attenuations()
+        self.compute_AoAs()
+        self.compute_phases()
+        self.compute_attenuations()
         delays = np.floor(self.paths[:,0]*self.B*self.os)
         delays_1 = np.floor(self.paths[:,0]*self.B)
         for i,(d,d1) in enumerate(zip(delays.astype(int),delays_1.astype(int))):
@@ -232,6 +239,10 @@ class channel_sim():
         self.cir = cir
 
     def gen_noise(self, len):
+        """
+            returns noise of specified length with power computed from the desired SNR level.
+            len: noise length.
+        """
         snr_lin = 10 ** (self.SNR / 10)
         noise_std = np.sqrt(1 ** 2 / snr_lin) # assuming signal amplitude=1
         noise = np.random.normal(0, noise_std / np.sqrt(2), size=len) + 1j * np.random.normal(
@@ -241,6 +252,8 @@ class channel_sim():
 
     def get_rxsignal(self, plot=False):
         """
+            returns the received signal after: transmission, channel, and reception with additive noise.
+            plot: wether to plot the received signal.
         """
         filt = np.convolve(self.trn_field.real,self.h_rrc) + 1j*np.convolve(self.trn_field.imag,self.h_rrc)
         rx_signal = np.convolve(filt,self.up_cir)
@@ -263,6 +276,9 @@ class channel_sim():
 
     def sampling(self, up_rx_signal, plot=False):
         """
+            compute the sampled received signal after a synchronization performed exploiting the first Golay sequence.
+            up_rx_signal: signal to sample;
+            plot: wether to plot the the selected samples of the original signal.
         """
         Ga = self.load_Golay_seqs()[0]
         up_Ga = np.zeros(len(Ga)*self.os, dtype=complex)
@@ -283,14 +299,25 @@ class channel_sim():
             plt.stem(self.rx_signal.real, 'r')
             plt.show()
         self.rx_signal = self.rx_signal[int(np.floor(len(self.h_rrc)/2)/self.os)*2:] #compensate for the filters time shift 
-        
 
+    def add_cfo(self, h_est):
+        """
+            return the cir estimate after adding the channel frequency offset shift.
+            h_est: signal (cir estimate).
+        """
+        self.f_off = np.random.normal(0,self.std_w)
+        return h_est * np.exp(1j*2*np.pi*self.f_off)       
+        
     def load_Golay_seqs(self):
         Ga = loadmat("cir_estimation_sim/Ga128_rot_2sps.mat")["Ga128_rot_2sps"].squeeze()
         Gb = loadmat("cir_estimation_sim/Gb128_rot_2sps.mat")["Gb128_rot_2sps"].squeeze()
         return Ga, Gb
 
-    def estimate_CIR(self, signal):
+    def estimate_CIR(self, signal, plot=False):
+        """
+            returns the estimated channel impulse response performing correlation with the TRN field Golay sequences.
+            signal: received, sampled signal.
+        """
         Ga,Gb = self.load_Golay_seqs()
         Gacor = correlate(signal, Ga)
         Gbcor = correlate(signal, Gb)
@@ -328,8 +355,39 @@ class channel_sim():
         ind_h = a_part + b_part
 
         # add individual results
-        h128 = ind_h.sum(axis=1)
-        return h128
+        h_128 = ind_h.sum(axis=1)
+
+        # add cfo 
+        h_128 = self.add_cfo(h_128)
+
+        if plot:
+            plt.stem(np.abs(h_128)/max(abs(h_128)), linefmt='r', markerfmt='rD', label='estimate')
+            plt.stem(np.linspace(0,256,16*256),abs(self.up_cir)/max(abs(self.up_cir)), linefmt='g', markerfmt='gD', label='real upsampled')
+            plt.stem(np.abs(self.cir)/max(abs(self.cir)), label='real sampled')
+            plt.legend()
+            plt.show()
+
+        return h_128
+    
+    def get_phases(self, h, plot=False):
+        """
+            return cir phases [LoS,t,s1,...,sn_static].
+            h: cir;
+            plot: wether to plot the selected paths from the given cir.
+        """
+        ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
+        ind = np.floor(self.paths[:,0]*self.B).astype(int) # from the paths delay
+        phases = np.angle(h[ind])
+        if plot:
+            t = np.zeros(len(h))
+            t[ind] = np.abs(h[ind])
+            plt.stem(np.abs(h_128)/max(abs(h_128)), linefmt='r', markerfmt='rD', label='estimate')
+            plt.stem(np.abs(ch_sim.cir)/max(abs(ch_sim.cir)), label='real')
+            plt.stem(t/max(t), markerfmt='gD', label='selected paths')
+            plt.grid()
+            plt.legend()
+            plt.show()
+        return phases 
 
 
 if __name__=='__main__':
@@ -338,16 +396,12 @@ if __name__=='__main__':
    
     ch_sim.get_positions(5,5, plot=False)
 
-    ch_sim.get_cir(plot=False)
+    ch_sim.compute_cir(plot=False)
 
     up_rx_signal = ch_sim.get_rxsignal(plot=False)
 
     ch_sim.sampling(up_rx_signal, plot=False)
 
-    h_128 = ch_sim.estimate_CIR(ch_sim.rx_signal)
-    
-    plt.stem(np.abs(h_128)/max(abs(h_128)),'r', markerfmt='D', label='estimate')
-    plt.stem(np.linspace(0,256,16*256),abs(ch_sim.up_cir)/max(abs(ch_sim.up_cir)),'g',markerfmt='D', label='real upsampled')
-    plt.stem(np.abs(ch_sim.cir)/max(abs(ch_sim.cir)), label='real sampled')
-    plt.legend()
-    plt.show()
+    h_128 = ch_sim.estimate_CIR(ch_sim.rx_signal, plot=False)
+
+    phases = ch_sim.get_phases(h_128, plot=True)
