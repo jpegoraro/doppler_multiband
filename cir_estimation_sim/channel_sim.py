@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
-import scipy
+from tqdm import tqdm
 from commpy.filters import rrcosfilter
 from scipy.signal import correlate, correlation_lags
 
@@ -22,6 +22,8 @@ class channel_sim():
         self.v_rx = (v_rx[0]**2+v_rx[1]**2)**(0.5) # speed modulus
         self.eta = np.arctan(v_rx[1]/v_rx[0]) # speed direction w.r.t. positive x-axis
         self.fd = fd
+        self.f_off = 0
+        
         self.SNR = SNR # dB
         self.G_tx = G_tx
         self.G_rx = G_rx
@@ -32,12 +34,17 @@ class channel_sim():
         self.os = os
         self.tx = tx
         self.rx = rx
+
         self.trn_field = None
         self.cir = None
         self.rx_signal = None
+        self.k = 0 # dicrete time index
+
         self.beta = np.zeros(n_static+1)
         self.positions = np.zeros((self.n_static+3,2)) # positions coordinates [rx,tx,t,s1,...,sn_static]
         self.paths = np.zeros((n_static+2,4)) # [delay, phase, attenuations, AoA] for each path [LoS,t,s1,...,sn_static]
+        self.phases = np.zeros((n_static+2,2)) # estimated phases at time k-1 and k
+        
         self.h_rrc = rrcosfilter(129, alpha=1, Ts=1/(self.B), Fs=os*self.B)[1] 
         n = int(1e-3*self.B) # number of samples in 1 ms
         fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
@@ -115,7 +122,13 @@ class channel_sim():
             #y = pos[i-2][1]
             ##############################
         if plot:
-            self.plot_pos()     
+            self.plot_pos() 
+
+    def update_positions(self):    
+        # rx constant motion
+        self.positions[0,:] += self.v_rx * self.k / self.B
+        #target 
+        self.positions[2,:] 
 
     def plot_pos(self):
         """
@@ -219,7 +232,6 @@ class channel_sim():
             self.load_trn_field()
         up_cir = np.zeros(256*16).astype(complex)
         cir = np.zeros(256).astype(complex)
-        t = 1/(self.B*(self.os))
         assert all(self.paths[:,0]==self.get_delays())
         self.compute_AoAs()
         self.compute_phases()
@@ -305,8 +317,8 @@ class channel_sim():
             return the cir estimate after adding the channel frequency offset shift.
             h_est: signal (cir estimate).
         """
-        self.f_off = np.random.normal(0,self.std_w)
-        return h_est * np.exp(1j*2*np.pi*self.f_off)       
+        self.f_off += np.random.normal(0,self.std_w)
+        return h_est * np.exp(1j*2*np.pi*self.f_off*self.k/self.B)       
         
     def load_Golay_seqs(self):
         Ga = loadmat("cir_estimation_sim/Ga128_rot_2sps.mat")["Ga128_rot_2sps"].squeeze()
@@ -376,8 +388,10 @@ class channel_sim():
             plot: wether to plot the selected paths from the given cir.
         """
         ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
-        ind = np.floor(self.paths[:,0]*self.B).astype(int) # from the paths delay
+        ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
         phases = np.angle(h[ind])
+        self.phases[:,0] = self.phases[:,1]
+        self.phases[:,1] = phases
         if plot:
             t = np.zeros(len(h))
             t[ind] = np.abs(h[ind])
@@ -388,6 +402,36 @@ class channel_sim():
             plt.legend()
             plt.show()
         return phases 
+    
+    def simulation(self, x_max, y_max, N, interval):
+        for j in tqdm(range(N),dynamic_ncols=True):
+            phase_diff = []
+            self.get_positions(x_max,y_max)
+            self.compute_cir()
+            up_rx_signal = self.get_rxsignal()
+            self.sampling(up_rx_signal)
+            h = self.estimate_CIR(self.rx_signal)
+            self.get_phases(h)
+            for p in range(len(self.phases[:,0])):
+                    self.phases[p,0] = self.phases[p,0] - self.phases[0,0]
+            for i in range(1,interval):
+                self.k += 1
+                self.compute_cir()
+                self.sampling(self.get_rxsignal())
+                self.estimate_CIR(self.rx_signal)
+                self.get_phases()
+                ### remove LoS from other paths ###
+                for p in range(len(self.phases[:,0])):
+                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+                ### phase difference ###
+                diff = self.phases[:,1] - self.phases[:,0]
+                phase_diff.append(diff)
+
+            ### time average ###
+            phase_diff = np.stack(phase_diff, axis=0)
+            phase_diff = np.mean(phase_diff, axis=0)
+            # AoA add noise or realistic estimation?
+
 
 
 if __name__=='__main__':
