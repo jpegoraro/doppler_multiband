@@ -278,7 +278,7 @@ class Simulation():
                     vs_n = []
                     phase_diff = []
                     zetas = []
-                    self.compute_input(k_ind=1)
+                    self.compute_input(k=1)
                     for i in range(2,interval):
                         self.update_input(k=i)
                         phases = self.add_noise_phase(noise, p_std)
