@@ -72,10 +72,32 @@ class channel_sim():
         g = np.convolve(h, h)
         g = g/max(g)
         h1 = deconvolve(g,h)[0]
-        # plt.plot(g)
-        # plt.grid()
-        # plt.show()
         return h1
+    
+    def my_mod_2pi(self, phases):
+        """
+            Map an array or a matrix of angles [rad] in [-pi,pi].
+
+            phases: measured phases.
+        """
+        if phases.ndim==2:
+            for j in range(phases.shape[1]):
+                for i,p in enumerate(phases[:,j]):
+                    while p <-np.pi:
+                        p = p+2*np.pi
+                    while p>np.pi:
+                        p = p-2*np.pi
+                    phases[i,j]=p
+        elif phases.ndim==1:
+            for i,p in enumerate(phases):
+                    while p <-np.pi:
+                        p = p+2*np.pi
+                    while p>np.pi:
+                        p = p-2*np.pi
+                    phases[i]=p
+        else:
+            raise Exception("phases number of dimensions must be <= 2.")
+        return phases
 
     def get_positions(self,x_max,y_max,res_min=1,dist_min=1.5,plot=False):
         """
@@ -86,7 +108,6 @@ class channel_sim():
             dist_min: minimum distance between two reflector/scatterer [m]
             returns an array of positions coordinates [rx,tx,t,s1,s2]
         """
-        #pos = [[0.5,3],[2,0.25],[4,0.75]]
         self.positions
         beta_max = 2*np.arccos(3e8/(2*self.B*res_min))
         self.positions[0,:] = x_max,y_max
@@ -145,10 +166,6 @@ class channel_sim():
                         break
                 x = np.random.uniform(0,x_max)
                 y = np.random.uniform(0,y_max)
-            ### fix static objects pos ###
-            #x = pos[i-2][0]
-            #y = pos[i-2][1]
-            ##############################
         self.compute_AoAs()
         check = False
         while not check: # AoAs must be different between them
@@ -195,7 +212,6 @@ class channel_sim():
         plt.plot(self.positions[0,0],self.positions[0,1],'ro',label='rx')
         plt.plot(self.positions[1,0],self.positions[1,1],'go',label='tx')
         plt.plot(self.positions[2,0],self.positions[2,1],'r+',label='target')
-        #plt.plot(self.positions[3:,0],self.positions[3:,1],'bo',label='static objects')
         plt.plot(self.positions[0:2,0],self.positions[0:2,1],label='LoS')
         for i in range(2,self.n_static+3):
             plt.plot([self.positions[1,0],self.positions[i,0],self.positions[0,0]],[self.positions[1,1],self.positions[i,1],self.positions[0,1]])
@@ -220,7 +236,7 @@ class channel_sim():
             pos: [x,y] Cartesian coordinates
         """
         ## assume reflection, but no scatter 
-        G_tx = 10**(25/10) ## assume tx gain for reflectors
+        G_tx = 1#10**(20/10) ## assume tx gain for reflectors
         return (G_tx*self.G_rx*self.l**2*rcs/((4*np.pi)**3*(self.dist(pos,self.positions[0,:])+self.dist(pos,self.positions[1,:]))**2))**(0.5)
     
     def path_loss(self):
@@ -300,17 +316,16 @@ class channel_sim():
             self.compute_attenuations()
         delays = np.floor(self.paths[:,0]*self.B)
         for i,d in enumerate(delays.astype(int)):
-            #if i<1:
-                up_cir[d*self.us] = up_cir[d*self.us] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
-                cir[d] = cir[d] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
+            up_cir[d*self.us] = up_cir[d*self.us] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
+            cir[d] = cir[d] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
         assert np.count_nonzero(cir)==len(self.paths[:,0]) # check that all paths are separable
         if plot:
             plt.title('upsampled cir')
             plt.grid()
-            plt.stem(abs(up_cir),markerfmt='D')#/(max(abs(cir))))
+            plt.stem(abs(up_cir),markerfmt='D')
             plt.show()
-        self.up_cir = up_cir
-        self.cir = cir
+        self.up_cir = up_cir/abs(self.paths[0,2])
+        self.cir = cir/abs(self.paths[0,2])
 
     def gen_noise(self, len):
         """
@@ -329,20 +344,18 @@ class channel_sim():
             returns the received signal after: transmission, channel, and reception with additive noise.
             plot: wether to plot the received signal.
         """
+        ### tx rrcos filter ###
         filt = np.convolve(self.trn_field,self.h_rrc)# + 1j*np.convolve(self.trn_field.imag,self.h_rrc.astype((complex)))
         filt_delay = int((len(self.h_rrc)-1)/2)
         filt = filt[filt_delay:]#compensate for the filters time shift 
+        ### physical channel ###
         rx_signal = np.convolve(filt,self.up_cir) 
+        ### add noise ###
         noise = self.gen_noise(len(rx_signal))
-        #rx_signal = rx_signal + noise
+        rx_signal = rx_signal + noise
+        ### rx rrcos filter ###
         rx_signal = np.convolve(rx_signal,np.flip(self.h_rrc))# + 1j*np.convolve(rx_signal.imag,np.flip(self.h_rrc))
         rx_signal = rx_signal[filt_delay:]#compensate for the filters time shift 
-        #g = np.convolve(self.h_rrc, np.flip(self.h_rrc))
-        #plt.plot(self.h_rrc)
-        #plt.plot(self.h_rrc)
-        #plt.plot(np.flip(self.h_rrc))
-        #plt.grid()
-        #plt.show()
         if plot:
             plt.plot(filt.real)
             plt.show()
@@ -361,8 +374,8 @@ class channel_sim():
         Ga = self.load_Golay_seqs()[0]
         up_Ga = np.zeros(len(Ga)*self.us)
         up_Ga[::self.us] = Ga
-        rrcos_up_Ga = np.convolve(up_Ga,self.h_rrc) # + 1j*np.convolve(up_Ga.imag,self.h_rrc)
-        rcos_up_Ga = np.convolve(rrcos_up_Ga,np.flip(self.h_rrc)) # + 1j*np.convolve(rrcos_up_Ga.imag,np.flip(self.h_rrc))
+        rrcos_up_Ga = np.convolve(up_Ga,self.h_rrc) 
+        rcos_up_Ga = np.convolve(rrcos_up_Ga,np.flip(self.h_rrc)) 
         xcorr = np.correlate(up_rx_signal, rcos_up_Ga)[0:256*self.us] # check just for the first peak 
         #plt.plot(xcorr.real)
         #plt.plot(abs(xcorr))
@@ -438,9 +451,6 @@ class channel_sim():
         # add individual results
         h_128 = ind_h.sum(axis=1)
 
-        # add cfo 
-        h_128 = self.add_cfo(h_128)
-
         if plot:
             plt.stem(np.abs(h_128)/max(abs(h_128)), linefmt='r', markerfmt='rD', label='estimate')
             #plt.stem(np.linspace(0,256,16*256),abs(self.up_cir)/max(abs(self.up_cir)), linefmt='g', markerfmt='gD', label='real upsampled')
@@ -468,7 +478,6 @@ class channel_sim():
         if plot:
             t = np.zeros(len(h))
             t[ind] = np.abs(h[ind])
-            #plt.stem(np.abs(h)/max(abs(h)), linefmt='r', markerfmt='rD', label='estimate')
             plt.stem(np.abs(ch_sim.cir), label='real')
             plt.stem(t, markerfmt='gD', label='selected paths')
             plt.grid()
@@ -544,29 +553,23 @@ class channel_sim():
         
         for j in tqdm(range(N),dynamic_ncols=True):
             phase_diff = []
-            phase_diff_real = []
             self.k = 0
             self.get_positions(x_max,y_max,plot=False)
             self.compute_cir(init=True,plot=False)
             up_rx_signal = self.get_rxsignal(plot=False)
             self.sampling(up_rx_signal,plot=False)
             h = self.estimate_CIR(self.rx_signal,plot=False)
-            h_test = self.cir
             self.get_phases(h)
             for p in range(1,len(self.phases[:,1])):
                     self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-            ##debug##
-            self.get_phases1(h_test)
-            for p in range(1,len(self.phases[:,1])):
-                    self.phases1[p,1] = self.phases1[p,1] - self.phases1[0,1]
-            #########
             for i in range(1,interval):
                 self.k = i
                 self.compute_cir(init=False)
                 up_rx_signal = self.get_rxsignal(plot=False)
                 self.sampling(up_rx_signal,plot=False)
                 h = self.estimate_CIR(self.rx_signal,plot=False)
-                #h_test = self.add_cfo(self.cir)
+                # add cfo 
+                h = self.add_cfo(h)
                 self.get_phases(h,plot=False)
                 ### remove LoS from other paths ###
                 for p in range(1,len(self.phases[:,1])):
@@ -574,17 +577,10 @@ class channel_sim():
                 ## phase difference ###
                 diff = self.phases[:,1] - self.phases[:,0]
                 phase_diff.append(diff)
-                ##debug##
-                self.get_phases1(self.cir)
-                for p in range(1,len(self.phases[:,1])):
-                       self.phases1[p,1] = self.phases1[p,1] - self.phases1[0,1]
-                diff_real = self.phases1[:,1] - self.phases1[:,0]
-                phase_diff_real.append(diff_real)
-                #########
 
             ### time average ###
             phase_diff = np.stack(phase_diff, axis=0)
-            phase_diff = phase_diff%(2*np.pi)
+            phase_diff = self.my_mod_2pi(phase_diff)
             phase_diff = np.mean(phase_diff, axis=0) 
             phase_diff = phase_diff[1:]
             ### check phase diff < pi ###
@@ -597,27 +593,12 @@ class channel_sim():
             x0 = [f_d, v, eta]
             x0 = self.check_initial_values(x0)
             results = least_squares(self.system, x0, args=(phase_diff, AoA))
-            ##debug##
-            phase_diff_real = np.stack(phase_diff_real, axis=0)
-            phase_diff_real = phase_diff_real%(2*np.pi)
-            phase_diff_real = np.mean(phase_diff_real, axis=0) 
-            phase_diff_real = phase_diff_real[1:]
-            for i,p in enumerate(phase_diff_real):
-                if p>np.pi:
-                    phase_diff_real[i] = p - 2*np.pi
-            eta, f_d, v = self.solve_system(phase_diff_real,AoA)
-            #########
+
             if relative:
                 err = np.abs((self.fd-np.mean(results.x[0]))/self.fd)
                 print('fd estimate relative error: ' + str(err))
                 if err>0.001:
                     print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths[1:,3],self.paths[1:,3]-self.eta))
-                else:
-                    a=1
-                if err>250:
-                    print('error: '+str(err))
-                    print('real fD: '+str(self.fd))
-                    print('est. fD: '+str(np.mean(results.x[0])))
                 f_d_error.append(err)
             else:
                 f_d_error.append(np.abs(self.fd-np.mean(results.x[0])))

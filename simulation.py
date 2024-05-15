@@ -121,21 +121,23 @@ class Simulation():
 
             phases: measured phases.
         """
-        if phases.ndim>1:
-            for j in range(phases.ndim):
+        if phases.ndim==2:
+            for j in range(phases.shape[1]):
                 for i,p in enumerate(phases[:,j]):
                     while p <-np.pi:
                         p = p+2*np.pi
                     while p>np.pi:
                         p = p-2*np.pi
                     phases[i,j]=p
-        else:
+        elif phases.ndim==1:
             for i,p in enumerate(phases):
                     while p <-np.pi:
                         p = p+2*np.pi
                     while p>np.pi:
                         p = p-2*np.pi
                     phases[i]=p
+        else:
+            raise Exception("phases number of dimensions must be <= 2.")
         return phases
 
     def solve_system(self, phases, zetas):
