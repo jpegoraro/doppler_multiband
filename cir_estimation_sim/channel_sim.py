@@ -10,16 +10,20 @@ import seaborn as sns
 
 class channel_sim():
 
-    def __init__(self,v_rx,fd,T=0.08e-3,SNR=50,G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,us=16,vmax=5,tx=None,rx=None):
+    def __init__(self,v_rx,fd,T=0.08e-3,SNR=20,AoAstd=np.deg2rad(5),G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,us=16,vmax=5,tx=None,rx=None):
         """
             v_rx: receiver speed vector (2 components)[m/s]
             fd: Doppler shift caused by target movement [Hz]
+            T: interpacket time (cir samples period) [s]
+            SNR: signal to noise ratio [dB]
+            AoAstd: std of the noise added to the angles of arrivals measurements [rad]
             G_tx/G_rx: transmitter/receiver antenna gain
             P_tx: transmitted power
             l: wavelength [m] 
             n_static: number of static paths
             B: bandwidth [Hz]
             us: up sampling rate (t' = t / us)
+            vmax: maximum receiver speed [m/s]
             tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m]
         """
         self.vrx = v_rx # speed vector
@@ -30,6 +34,7 @@ class channel_sim():
         self.vmax = vmax
         
         self.SNR = SNR # dB
+        self.AoAstd = AoAstd
         self.G_tx = G_tx
         self.G_rx = G_rx
         self.P_tx = P_tx
@@ -230,14 +235,17 @@ class channel_sim():
         """
         return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**(.5)
     
-    def radar_eq(self,pos,rcs=1):
+    def radar_eq(self,pos,rcs=1, scatter=False):
         """
             returns the attenuation due to a reflector at position pos.
             pos: [x,y] Cartesian coordinates
         """
-        ## assume reflection, but no scatter 
         G_tx = 1#10**(20/10) ## assume tx gain for reflectors
-        return (G_tx*self.G_rx*self.l**2*rcs/((4*np.pi)**3*(self.dist(pos,self.positions[0,:])+self.dist(pos,self.positions[1,:]))**2))**(0.5)
+        if scatter:
+            a = (G_tx*self.G_rx*self.l**2*rcs/((4*np.pi)**3*(self.dist(pos,self.positions[0,:])*self.dist(pos,self.positions[1,:]))**2))**(0.5)
+        else:
+            a = (G_tx*self.G_rx*self.l**2*rcs/((4*np.pi)**3*(self.dist(pos,self.positions[0,:])+self.dist(pos,self.positions[1,:]))**2))**(0.5)
+        return a
     
     def path_loss(self):
         """
@@ -485,9 +493,11 @@ class channel_sim():
             plt.show()
         return phases 
     
-    def get_phases1(self, h):
-        ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
-        ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
+    def get_phases1(self, h, peak_detection=False):
+        if peak_detection:
+            ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
+        else:
+            ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
         phases = np.angle(h[ind])
         self.phases1[:,0] = self.phases1[:,1]
         self.phases1[:,1] = phases
@@ -587,8 +597,7 @@ class channel_sim():
             for i,p in enumerate(phase_diff):
                 if p>np.pi:
                     phase_diff[i] = p - 2*np.pi
-            # AoA add noise or realistic estimation?
-            AoA = self.paths[1:,3]
+            AoA = self.paths[1:,3] + np.random.normal(0,self.AoAstd,self.n_static+1)
             eta, f_d, v = self.solve_system(phase_diff,AoA)
             x0 = [f_d, v, eta]
             x0 = self.check_initial_values(x0)
@@ -626,7 +635,7 @@ class channel_sim():
 
 if __name__=='__main__':
 
-    ch_sim = channel_sim(v_rx=[1,2],fd=1000, SNR=50)
+    ch_sim = channel_sim(v_rx=[1,2],fd=1000, SNR=20)
    
     # ch_sim.load_trn_field()
    
