@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
 from tqdm import tqdm
-from commpy.filters import rrcosfilter
 from itertools import combinations
 from scipy.signal import correlate, correlation_lags, deconvolve
 from scipy.optimize import least_squares
@@ -10,7 +9,7 @@ import seaborn as sns
 
 class channel_sim():
 
-    def __init__(self,v_rx,fd,T=0.08e-3,SNR=20,AoAstd=np.deg2rad(5),G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,us=16,vmax=5,tx=None,rx=None):
+    def __init__(self,T=0.08e-3,SNR=20,AoAstd=np.deg2rad(5),G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,us=16,vmax=5,tx=None,rx=None):
         """
             v_rx: receiver speed vector (2 components)[m/s]
             fd: Doppler shift caused by target movement [Hz]
@@ -26,10 +25,10 @@ class channel_sim():
             vmax: maximum receiver speed [m/s]
             tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m]
         """
-        self.vrx = v_rx # speed vector
-        self.v_rx = (v_rx[0]**2+v_rx[1]**2)**(0.5) # speed modulus
+        self.vrx = None # speed vector
+        self.v_rx = None # speed modulus
         self.eta = None # speed direction w.r.t. LoS
-        self.fd = fd
+        self.fd = None
         self.f_off = 0
         self.vmax = vmax
         
@@ -55,7 +54,6 @@ class channel_sim():
         self.positions = np.zeros((self.n_static+3,2)) # positions coordinates [rx,tx,t,s1,...,sn_static]
         self.paths = np.zeros((n_static+2,4)) # [delay, phase, attenuations, AoA] for each path [LoS,t,s1,...,sn_static]
         self.phases = np.zeros((n_static+2,2)) # estimated phases at time k-1 and k
-        self.phases1 = np.zeros((n_static+2,2)) # estimated phases at time k-1 and k
         
         #self.h_rrc = rrcosfilter(129, alpha=0.8, Ts=1/(self.B), Fs=us*self.B)[1] 
         self.h_rrc = self.rrcos(129,self.us,1)
@@ -104,7 +102,7 @@ class channel_sim():
             raise Exception("phases number of dimensions must be <= 2.")
         return phases
 
-    def get_positions(self,x_max,y_max,res_min=1,dist_min=1.5,plot=False):
+    def get_positions(self,x_max,y_max,res_min=1,dist_min=1,plot=False):
         """
             generate random positions for rx, tx, n_static objects in 2D.
             x_max: maximum x coordinate [m]
@@ -113,7 +111,11 @@ class channel_sim():
             dist_min: minimum distance between two reflector/scatterer [m]
             returns an array of positions coordinates [rx,tx,t,s1,s2]
         """
-        self.positions
+        self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
+        self.v_rx = (self.vrx[0]**2+self.vrx[1]**2)**(0.5) # speed modulus
+        self.fd = np.random.uniform(200,2000)
+        if np.random.rand()>0.5:
+            self.fd = - self.fd
         beta_max = 2*np.arccos(3e8/(2*self.B*res_min))
         self.positions[0,:] = x_max,y_max
         try:
@@ -181,24 +183,24 @@ class channel_sim():
                     self.compute_AoAs()
                     check = False
                     break
-        while True:
-            alpha = np.arctan(self.vrx[1]/self.vrx[0]) # speed direction w.r.t. positive x-axis
-            if self.vrx[0]<0:
-                alpha = alpha + np.pi
-            beta = np.arctan((self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])) # LoS path direction w.r.t. positive x-axis
-            if (self.positions[0,0]-self.positions[1,0])<0:
-                beta = beta + np.pi
-            alpha = alpha % (2*np.pi)
-            beta = beta % (2*np.pi) 
-            if alpha>beta:
-                self.eta = alpha - beta 
-            else:
-                self.eta = 2*np.pi - beta + alpha 
-            if all(abs(self.paths[1:,3]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
-                break
-            self.v_rx = np.random.uniform(0.5,self.vmax)
-            self.eta = np.random.uniform(0,2*np.pi)
-            self.vrx = [self.v_rx*np.cos(self.eta),self.v_rx*np.sin(self.eta)]
+        #while True:
+        alpha = np.arctan(self.vrx[1]/self.vrx[0]) # speed direction w.r.t. positive x-axis
+        if self.vrx[0]<0:
+            alpha = alpha + np.pi
+        beta = np.arctan((self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])) # LoS path direction w.r.t. positive x-axis
+        if (self.positions[0,0]-self.positions[1,0])<0:
+            beta = beta + np.pi
+        alpha = alpha % (2*np.pi)
+        beta = beta % (2*np.pi) 
+        if alpha>beta:
+            self.eta = alpha - beta 
+        else:
+            self.eta = 2*np.pi - beta + alpha 
+        # if all(abs(self.paths[1:,3]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
+        #     break
+        # self.v_rx = np.random.uniform(0.5,self.vmax)
+        # self.eta = np.random.uniform(0,2*np.pi)
+        # self.vrx = [self.v_rx*np.cos(self.eta),self.v_rx*np.sin(self.eta)]
         if plot:
             self.plot_pos() 
 
@@ -472,35 +474,28 @@ class channel_sim():
 
         return h_128
     
-    def get_phases(self, h, plot=False):
+    def get_phases(self, h, from_index= True, plot=False):
         """
             return cir phases [LoS,t,s1,...,sn_static].
             h: cir;
+            from_index: if True use the correct index to locate peaks, else performs peak detection;
             plot: wether to plot the selected paths from the given cir.
         """
-        ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
-        ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
+        if from_index:
+            ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
+        else:
+            ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
         phases = np.angle(h[ind])
         self.phases[:,0] = self.phases[:,1]
         self.phases[:,1] = phases
         if plot:
             t = np.zeros(len(h))
             t[ind] = np.abs(h[ind])
-            plt.stem(np.abs(ch_sim.cir), label='real')
+            plt.stem(np.abs(self.cir), label='real')
             plt.stem(t, markerfmt='gD', label='selected paths')
             plt.grid()
             plt.legend()
             plt.show()
-        return phases 
-    
-    def get_phases1(self, h, peak_detection=False):
-        if peak_detection:
-            ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
-        else:
-            ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
-        phases = np.angle(h[ind])
-        self.phases1[:,0] = self.phases1[:,1]
-        self.phases1[:,1] = phases
         return phases 
     
     def solve_system(self, phases, zetas):
@@ -631,11 +626,18 @@ class channel_sim():
         #tik.save(path+name+'.tex')
         plt.close()
 
+def varying_static_paths():
+    for n_static in [2,4,6,8,10]:
+        for l in [0.005,0.0107]:
+            ch_sim = channel_sim(SNR=20, l=l, n_static=n_static)
+            ch_sim.simulation(x_max=10, y_max=10, N=10, interval=2, path='data/varying_n/', save=True)
+
+
 
 
 if __name__=='__main__':
 
-    ch_sim = channel_sim(v_rx=[1,2],fd=1000, SNR=20)
+    ch_sim = channel_sim()
    
     # ch_sim.load_trn_field()
    
@@ -651,6 +653,8 @@ if __name__=='__main__':
 
     # phases = ch_sim.get_phases(h_128, plot=False)
 
-    f_d_error = ch_sim.simulation(5,5,20,100,'',save=False)
-    print(np.mean(f_d_error))
+    #f_d_error = ch_sim.simulation(5,5,20,100,'',save=False)
+    #print(np.mean(f_d_error))
     #ch_sim.plot_boxplot('',[f_d_error],'','relative fD error',[1],'')
+
+    varying_static_paths()
