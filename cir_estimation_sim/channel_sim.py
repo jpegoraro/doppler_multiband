@@ -1,11 +1,12 @@
+from itertools import combinations
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import loadmat
-from tqdm import tqdm
-from itertools import combinations
 from scipy.signal import correlate, correlation_lags, deconvolve
 from scipy.optimize import least_squares
 import seaborn as sns
+import time
+#from tqdm import tqdm
 
 class channel_sim():
 
@@ -101,108 +102,113 @@ class channel_sim():
         else:
             raise Exception("phases number of dimensions must be <= 2.")
         return phases
-
+    
     def get_positions(self,x_max,y_max,res_min=1,dist_min=1,plot=False):
-        """
-            generate random positions for rx, tx, n_static objects in 2D.
-            x_max: maximum x coordinate [m]
-            y_max: maximum y coordinate [m]
-            res_min: minimum distance resolution [m]
-            dist_min: minimum distance between two reflector/scatterer [m]
-            returns an array of positions coordinates [rx,tx,t,s1,s2]
-        """
-        self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
-        self.v_rx = (self.vrx[0]**2+self.vrx[1]**2)**(0.5) # speed modulus
-        self.fd = np.random.uniform(200,2000)
-        if np.random.rand()>0.5:
-            self.fd = - self.fd
-        beta_max = 2*np.arccos(3e8/(2*self.B*res_min))
-        self.positions[0,:] = x_max,y_max
-        try:
-            if self.tx:
-                self.positions[1,:] = self.tx
-            else:
-                self.tx = self.positions[1,:]
-        except:
-            self.positions[1,:] = self.tx
-        try:
-            if self.rx:
-                self.positions[0,:] = self.rx
-            else:
-                self.rx = self.positions[0,:]
-        except:
-            self.positions[0,:] = self.rx
+            """
+                generate random positions for rx, tx, n_static objects in 2D.
+                x_max: maximum x coordinate [m]
+                y_max: maximum y coordinate [m]
+                res_min: minimum distance resolution [m]
+                dist_min: minimum distance between two reflector/scatterer [m]
+                returns an array of positions coordinates [rx,tx,t,s1,s2]
+            """
+            self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
+            self.v_rx = (self.vrx[0]**2+self.vrx[1]**2)**(0.5) # speed modulus
+            self.fd = np.random.uniform(200,2000)
+            if np.random.rand()>0.5:
+                self.fd = - self.fd
+            beta_max = 2*np.arccos(3e8/(2*self.B*res_min))
+            self.positions[0,:] = [x_max,y_max]
+            self.positions[1,:] = [0,0]
 
-        self.paths[0,0] = self.dist(self.positions[0,:],self.positions[1,:])/3e8 # LoS delay
-        for i in range(2,self.n_static+3):
-            x = np.random.uniform(0,x_max)
-            y = np.random.uniform(0,y_max)
-            beta = np.pi
-            while True:
-                check = []
-                for j in range(i):
-                    check.append(self.dist(self.positions[j,:],[x,y])<dist_min)
-                if any(check):        
-                    x = np.random.uniform(0,x_max)
-                    y = np.random.uniform(0,y_max)
-                    continue        
-                m_1 = (y-self.positions[1,1])/(x-self.positions[1,0])
-                q_1 = y-m_1*x
-                m_2 = -1/m_1
-                q_2 = self.positions[0,1]-m_2*self.positions[0,0]
-                x_p = (q_1-q_2)/(m_2-m_1)
-                y_p = m_1*x_p+q_1
-                d = self.dist([x,y],[x_p,y_p])
-                ip = self.dist(self.positions[0,:],[x,y])
-                if self.dist(self.positions[1,:],[x_p,y_p])>self.dist(self.positions[1,:],[x,y]):
-                    beta = np.pi-np.arccos(d/ip)
-                else:
-                    beta = np.arccos(d/ip)
-                assert int(ip**2)==int(d**2+((self.positions[0,0]-x_p)**2+(self.positions[0,1]-y_p)**2))
-                if beta<beta_max:
-                    self.beta[i-2] = beta
-                    self.positions[i,:] = x,y
-                    # path delay for non-LoS
-                    self.paths[i-1,0] = (self.dist(self.positions[1,:],self.positions[i,:])+self.dist(self.positions[i,:],self.positions[0,:]))/3e8
-                    check = []
-                    for j in range(0,i):
-                        for k in range(0,i):
-                            if k!=j:
-                                check.append(abs(self.paths[j,0]-self.paths[k,0])>3/self.B) # check all path are separable
-                    if all(check):
-                        break
+            self.paths[0,0] = self.dist(self.positions[0,:],self.positions[1,:])/3e8 # LoS delay
+            for i in range(2,self.n_static+3):
                 x = np.random.uniform(0,x_max)
                 y = np.random.uniform(0,y_max)
-        self.compute_AoAs()
-        check = False
-        while not check: # AoAs must be different between them
-            check=True
-            for i,j in combinations(range(1,4),2):
-                if abs(self.paths[i,3]-self.paths[j,3])<0.1:
-                    self.get_positions(5,5)
-                    self.compute_AoAs()
-                    check = False
-                    break
-        #while True:
-        alpha = np.arctan(self.vrx[1]/self.vrx[0]) # speed direction w.r.t. positive x-axis
-        if self.vrx[0]<0:
-            alpha = alpha + np.pi
-        beta = np.arctan((self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])) # LoS path direction w.r.t. positive x-axis
-        if (self.positions[0,0]-self.positions[1,0])<0:
-            beta = beta + np.pi
-        alpha = alpha % (2*np.pi)
-        beta = beta % (2*np.pi) 
-        if alpha>beta:
-            self.eta = alpha - beta 
-        else:
-            self.eta = 2*np.pi - beta + alpha 
-        # if all(abs(self.paths[1:,3]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
-        #     break
-        # self.v_rx = np.random.uniform(0.5,self.vmax)
-        # self.eta = np.random.uniform(0,2*np.pi)
-        # self.vrx = [self.v_rx*np.cos(self.eta),self.v_rx*np.sin(self.eta)]
-        if plot:
-            self.plot_pos() 
+                beta = np.pi
+                start = time.time()
+                while True:
+                    if time.time()-start>1:
+                        self.get_positions(x_max,y_max)
+                        break
+                    check = []
+                    for j in range(i):
+                        check.append(self.dist(self.positions[j,:],[x,y])<dist_min)
+                    if any(check):        
+                        x = np.random.uniform(0,x_max)
+                        y = np.random.uniform(0,y_max)
+                        continue        
+                    m_1 = (y-self.positions[1,1])/(x-self.positions[1,0])
+                    q_1 = y-m_1*x
+                    m_2 = -1/m_1
+                    q_2 = self.positions[0,1]-m_2*self.positions[0,0]
+                    x_p = (q_1-q_2)/(m_2-m_1)
+                    y_p = m_1*x_p+q_1
+                    d = self.dist([x,y],[x_p,y_p])
+                    ip = self.dist(self.positions[0,:],[x,y])
+                    if self.dist(self.positions[1,:],[x_p,y_p])>self.dist(self.positions[1,:],[x,y]):
+                        beta = np.pi-np.arccos(d/ip)
+                    else:
+                        beta = np.arccos(d/ip)
+                    assert int(ip**2)==int(d**2+((self.positions[0,0]-x_p)**2+(self.positions[0,1]-y_p)**2))
+                    if beta<beta_max:
+                        self.beta[i-2] = beta
+                        self.positions[i,:] = x,y
+                        # path delay for non-LoS
+                        self.paths[i-1,0] = (self.dist(self.positions[1,:],self.positions[i,:])+self.dist(self.positions[i,:],self.positions[0,:]))/3e8
+                        check = []
+                        for j in range(0,i):
+                            for k in range(0,i):
+                                if k!=j:
+                                    check.append(abs(self.paths[j,0]-self.paths[k,0])>1/self.B) # check all path are separable
+                        if all(check):
+                            check = []
+                            self.compute_AoA(ind=i-1)
+                            for k,j in combinations(range(i),2):
+                                check.append(abs(self.paths[k,3]-self.paths[j,3])>0.05) # AoAs must be different between them
+                            if all(check):
+                                break
+                    x = np.random.uniform(0,x_max)
+                    y = np.random.uniform(0,y_max)
+            #while True:
+            alpha = np.arctan(self.vrx[1]/self.vrx[0]) # speed direction w.r.t. positive x-axis
+            if self.vrx[0]<0:
+                alpha = alpha + np.pi
+            beta = np.arctan((self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])) # LoS path direction w.r.t. positive x-axis
+            if (self.positions[0,0]-self.positions[1,0])<0:
+                beta = beta + np.pi
+            alpha = alpha % (2*np.pi)
+            beta = beta % (2*np.pi) 
+            if alpha>beta:
+                self.eta = alpha - beta 
+            else:
+                self.eta = 2*np.pi - beta + alpha 
+            # if all(abs(self.paths[1:,3]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
+            #     break
+            # self.v_rx = np.random.uniform(0.5,self.vmax)
+            # self.eta = np.random.uniform(0,2*np.pi)
+            # self.vrx = [self.v_rx*np.cos(self.eta),self.v_rx*np.sin(self.eta)]
+            if plot:
+                self.plot_pos() 
+
+    def compute_AoA(self,ind):
+        """
+            compute angles of arrival for each path.
+            ind: path index whose AoA has to be computed.
+            LoS AoA=0.
+        """
+        m = (self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0]) # LoS: y = mx+q
+        q = self.positions[0,1]-m*self.positions[0,0]
+        m1 = -1/m
+        
+        x,y = self.positions[ind+1,:]
+        q1 = y-m1*x
+        x_p = (q-q1)/(m1-m) 
+        y_p = m*x_p+q       # (x_p,y_p) = target/static obj. projection on LoS
+        c = self.dist([x_p,y_p],self.positions[0,:])
+        ip = self.dist([x,y],self.positions[0,:])
+        assert int(ip**2)==int(c**2+((x-x_p)**2+(y-y_p)**2))
+        self.paths[ind,3] = np.arccos(c/ip)
 
     def update_positions(self):    
         # rx constant motion
@@ -214,7 +220,6 @@ class channel_sim():
         """
             plots the environmental disposition.
         """
-        self.compute_AoAs()
         print('AoA : LoS, t, s1, s2, ... \n' + str(np.rad2deg(self.paths[:,3])))
         plt.plot(self.positions[0,0],self.positions[0,1],'ro',label='rx')
         plt.plot(self.positions[1,0],self.positions[1,1],'go',label='tx')
@@ -264,26 +269,6 @@ class channel_sim():
         for i in range(1,len(self.paths)):
             paths[i] = (self.dist(self.positions[1,:],self.positions[i+1,:])+self.dist(self.positions[i+1,:],self.positions[0,:]))/3e8
         return paths
-    
-    def compute_AoAs(self):
-        """
-            compute angles of arrival for each path.
-            LoS AoA=0.
-        """
-        m = (self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0]) # LoS: y = mx+q
-        q = self.positions[0,1]-m*self.positions[0,0]
-        m1 = -1/m
-        for i in range(1,len(self.paths)):
-            x,y = self.positions[i+1,:]
-            q1 = y-m1*x
-            x_p = (q-q1)/(m1-m) 
-            y_p = m*x_p+q       # (x_p,y_p) = target/static obj. projection on LoS
-            c = self.dist([x_p,y_p],self.positions[0,:])
-            ip = self.dist([x,y],self.positions[0,:])
-            assert int(ip**2)==int(c**2+((x-x_p)**2+(y-y_p)**2))
-            self.paths[i,3] = np.arccos(c/ip)
-            # if y_p<y:
-            #     self.paths[i,3] = 2*np.pi-self.paths[i,3]
             
     def compute_phases(self):
         """
@@ -556,7 +541,8 @@ class channel_sim():
         f_d_error = []
         self.load_trn_field()
         
-        for j in tqdm(range(N),dynamic_ncols=True):
+        #for j in tqdm(range(N),dynamic_ncols=True):
+        for j in range(N):
             phase_diff = []
             self.k = 0
             self.get_positions(x_max,y_max,plot=False)
@@ -600,14 +586,18 @@ class channel_sim():
 
             if relative:
                 err = np.abs((self.fd-np.mean(results.x[0]))/self.fd)
-                print('fd estimate relative error: ' + str(err))
-                if err>0.001:
-                    print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths[1:,3],self.paths[1:,3]-self.eta))
+                #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
+                if err>1:
+                   print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
+                   print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths[1:,3],self.paths[1:,3]-self.eta))
                 f_d_error.append(err)
             else:
                 f_d_error.append(np.abs(self.fd-np.mean(results.x[0])))
         if save:
-                np.save(path+'fd_k'+str(interval)+'_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
+                if self.l==0.005:
+                    np.save(path+'fd_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
+                else:
+                    np.save(path+'fd_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
         return f_d_error
     
     def plot_boxplot(self, path, errors, xlabel, ylabel, xticks, title, name=''):
@@ -629,32 +619,34 @@ class channel_sim():
 def varying_static_paths():
     for n_static in [2,4,6,8,10]:
         for l in [0.005,0.0107]:
+            print('number of static paths: ' + str(n_static))
+            print('wavelength: ' + str(l) + ' m')
             ch_sim = channel_sim(SNR=20, l=l, n_static=n_static)
-            ch_sim.simulation(x_max=10, y_max=10, N=10, interval=2, path='data/varying_n/', save=True)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=2, path='data/varying_n/', save=True)
+            print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+
+def varying_snr():
+    for snr in [0,10,20,30]:
+        for l in [0.005,0.0107]:
+            print('SNR: ' + str(snr) + ' dB')
+            print('wavelength: ' + str(l) + ' m')
+            ch_sim = channel_sim(SNR=snr, l=l)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=10, path='data/varying_snr/', save=True)
+            print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+
+def varying_interval():
+    for interval in [2,4,8,16,32]:
+        for l in [0.005,0.0107]:
+            print('interval: ' + str(interval) + ' ms')
+            print('wavelength: ' + str(l) + ' m')
+            ch_sim = channel_sim(SNR=20, AoAstd=0, l=l)
+            i = int(interval*1e-3/ch_sim.T)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=i, path='data/varying_interval/', save=True)
+            print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+
 
 
 
 
 if __name__=='__main__':
-
-    ch_sim = channel_sim()
-   
-    # ch_sim.load_trn_field()
-   
-    # ch_sim.get_positions(5,5, plot=False)
-
-    # ch_sim.compute_cir(plot=False)
-
-    # up_rx_signal = ch_sim.get_rxsignal(plot=True)
-
-    # ch_sim.sampling(up_rx_signal, plot=True)
-
-    # h_128 = ch_sim.estimate_CIR(ch_sim.rx_signal, plot=True)
-
-    # phases = ch_sim.get_phases(h_128, plot=False)
-
-    #f_d_error = ch_sim.simulation(5,5,20,100,'',save=False)
-    #print(np.mean(f_d_error))
-    #ch_sim.plot_boxplot('',[f_d_error],'','relative fD error',[1],'')
-
-    varying_static_paths()
+	varying_interval()
