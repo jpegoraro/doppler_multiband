@@ -21,7 +21,7 @@ def normalizeNdB(s, dB=False):
 
 
 def load_trn_unit(path):
-    trn = loadmat(path / "TRN_unit.mat")["TRN_FIELD"].squeeze()
+    trn = loadmat(path / "TRN_unit_rot.mat")["TRN_FIELD"].squeeze()
     return trn
 
 
