@@ -2,6 +2,7 @@
 /books
 /utils
 /data
+/cir_estimation_sim/data
 /drawings
 __pycache__
 .vscode

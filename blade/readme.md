@@ -3,4 +3,4 @@
 -test singularity:
     $ singularity exec singularity.sif <command> 
 -file.slurm will execute singularity on blade
-    add --nv flag if gpu os needed
+    add --nv flag if gpu is needed

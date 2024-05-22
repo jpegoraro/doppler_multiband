@@ -4,27 +4,27 @@ import numpy as np
 from scipy.io import loadmat
 from scipy.signal import correlate, correlation_lags, deconvolve
 from scipy.optimize import least_squares
-import seaborn as sns
 import time
 #from tqdm import tqdm
 
 class channel_sim():
 
-    def __init__(self,T=0.08e-3,SNR=20,AoAstd=np.deg2rad(5),G_tx=1,G_rx=1,P_tx=1,l=0.005,n_static=2,B=1.76e9,us=16,vmax=5,tx=None,rx=None):
+    def __init__(self, T=0.08e-3, SNR=20, AoAstd=np.deg2rad(5), G_tx=1, G_rx=1, P_tx=1, l=0.005, 
+                 n_static=2, B=1.76e9, us=16, vmax=5, tx=None, rx=None):
         """
-            v_rx: receiver speed vector (2 components)[m/s]
-            fd: Doppler shift caused by target movement [Hz]
-            T: interpacket time (cir samples period) [s]
-            SNR: signal to noise ratio [dB]
-            AoAstd: std of the noise added to the angles of arrivals measurements [rad]
-            G_tx/G_rx: transmitter/receiver antenna gain
-            P_tx: transmitted power
-            l: wavelength [m] 
-            n_static: number of static paths
-            B: bandwidth [Hz]
-            us: up sampling rate (t' = t / us)
-            vmax: maximum receiver speed [m/s]
-            tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m]
+            v_rx: receiver speed vector (2 components)[m/s],
+            fd: Doppler shift caused by target movement [Hz],
+            T: interpacket time (cir samples period) [s],
+            SNR: signal to noise ratio [dB],
+            AoAstd: std of the noise added to the angles of arrivals measurements [rad],
+            G_tx/G_rx: transmitter/receiver antenna gain,
+            P_tx: transmitted power,
+            l: wavelength [m],
+            n_static: number of static paths,
+            B: bandwidth [Hz],
+            us: up sampling rate (ts = t / us),
+            vmax: maximum receiver speed [m/s],
+            tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m].
         """
         self.vrx = None # speed vector
         self.v_rx = None # speed modulus
@@ -54,15 +54,28 @@ class channel_sim():
         self.beta = np.zeros(n_static+1)
         self.positions = np.zeros((self.n_static+3,2)) # positions coordinates [rx,tx,t,s1,...,sn_static]
         self.paths = np.zeros((n_static+2,4)) # [delay, phase, attenuations, AoA] for each path [LoS,t,s1,...,sn_static]
+        self.paths = {
+            'delay': np.zeros(n_static+2),
+            'phase': np.zeros(n_static+2),
+            'AoA'  : np.zeros(n_static+2),
+            'gain' : np.zeros(n_static+2, dtype=complex)
+        }
         self.phases = np.zeros((n_static+2,2)) # estimated phases at time k-1 and k
         
-        #self.h_rrc = rrcosfilter(129, alpha=0.8, Ts=1/(self.B), Fs=us*self.B)[1] 
         self.h_rrc = self.rrcos(129,self.us,1)
         n = int(1e-3/self.T) # number of samples in 1 ms
         fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
         self.std_w = fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max        
 
-    def rrcos(self,n,T,beta):
+    def rrcos(self, n, T, beta):
+        """
+        Root raised cosine filter.
+        n: number of filter taps,
+        T: upsampling factor = t/ts where t is the 'real period' and ts is the sampling period,
+        beta: roll-off factor.
+
+        returns the filter impulsive response.
+        """
         h = np.zeros(n)
         start = int((n-1)/2)
         for t in range(int((n+1)/2)):
@@ -73,6 +86,7 @@ class channel_sim():
             else:
                 h[start+t] = 1/T *( (np.sin(np.pi*t/T*(1-beta)) + (4*beta*t/T*np.cos(np.pi*t/T*(1+beta)))) / (np.pi*t/T*(1-(4*beta*t/T)**2)) )
         h[:start] = np.flip(h[start+1:])
+        # normalization 
         g = np.convolve(h, h)
         g = g/max(g)
         h1 = deconvolve(g,h)[0]
@@ -80,9 +94,10 @@ class channel_sim():
     
     def my_mod_2pi(self, phases):
         """
-            Map an array or a matrix of angles [rad] in [-pi,pi].
-
+            Maps an array or a matrix of angles [rad] in [-pi,pi].
             phases: measured phases.
+
+            returns phases mapped in [-pi,pi].
         """
         if phases.ndim==2:
             for j in range(phases.shape[1]):
@@ -103,13 +118,14 @@ class channel_sim():
             raise Exception("phases number of dimensions must be <= 2.")
         return phases
     
-    def get_positions(self,x_max,y_max,res_min=1,dist_min=1,plot=False):
+    def get_positions(self, x_max, y_max, res_min=1, dist_min=1, plot=False):
             """
-                generate random positions for rx, tx, n_static objects in 2D.
-                x_max: maximum x coordinate [m]
-                y_max: maximum y coordinate [m]
-                res_min: minimum distance resolution [m]
-                dist_min: minimum distance between two reflector/scatterer [m]
+                Generates random positions for rx, tx, n_static objects in 2D.
+                x_max: maximum x coordinate [m],
+                y_max: maximum y coordinate [m],
+                res_min: minimum distance resolution [m],
+                dist_min: minimum distance between two reflector/scatterer [m].
+
                 returns an array of positions coordinates [rx,tx,t,s1,s2]
             """
             self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
@@ -121,7 +137,7 @@ class channel_sim():
             self.positions[0,:] = [x_max,y_max]
             self.positions[1,:] = [0,0]
 
-            self.paths[0,0] = self.dist(self.positions[0,:],self.positions[1,:])/3e8 # LoS delay
+            self.paths['delay'][0] = self.dist(self.positions[0,:],self.positions[1,:])/3e8 # LoS delay
             for i in range(2,self.n_static+3):
                 x = np.random.uniform(0,x_max)
                 y = np.random.uniform(0,y_max)
@@ -155,17 +171,17 @@ class channel_sim():
                         self.beta[i-2] = beta
                         self.positions[i,:] = x,y
                         # path delay for non-LoS
-                        self.paths[i-1,0] = (self.dist(self.positions[1,:],self.positions[i,:])+self.dist(self.positions[i,:],self.positions[0,:]))/3e8
+                        self.paths['delay'][i-1] = (self.dist(self.positions[1,:],self.positions[i,:])+self.dist(self.positions[i,:],self.positions[0,:]))/3e8
                         check = []
                         for j in range(0,i):
                             for k in range(0,i):
                                 if k!=j:
-                                    check.append(abs(self.paths[j,0]-self.paths[k,0])>1/self.B) # check all path are separable
+                                    check.append(abs(self.paths['delay'][j]-self.paths['delay'][k])>1/self.B) # check all path are separable
                         if all(check):
                             check = []
                             self.compute_AoA(ind=i-1)
                             for k,j in combinations(range(i),2):
-                                check.append(abs(self.paths[k,3]-self.paths[j,3])>0.05) # AoAs must be different between them
+                                check.append(abs(self.paths['AoA'][k]-self.paths['AoA'][j])>0.05) # AoAs must be different between them
                             if all(check):
                                 break
                     x = np.random.uniform(0,x_max)
@@ -183,7 +199,7 @@ class channel_sim():
                 self.eta = alpha - beta 
             else:
                 self.eta = 2*np.pi - beta + alpha 
-            # if all(abs(self.paths[1:,3]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
+            # if all(abs(self.paths['AoA'][1:]-(2*self.eta))>0.1): # check second existence condition (AoA!=2eta) 
             #     break
             # self.v_rx = np.random.uniform(0.5,self.vmax)
             # self.eta = np.random.uniform(0,2*np.pi)
@@ -191,9 +207,9 @@ class channel_sim():
             if plot:
                 self.plot_pos() 
 
-    def compute_AoA(self,ind):
+    def compute_AoA(self, ind):
         """
-            compute angles of arrival for each path.
+            Computes angles of arrival for each path.
             ind: path index whose AoA has to be computed.
             LoS AoA=0.
         """
@@ -208,7 +224,7 @@ class channel_sim():
         c = self.dist([x_p,y_p],self.positions[0,:])
         ip = self.dist([x,y],self.positions[0,:])
         assert int(ip**2)==int(c**2+((x-x_p)**2+(y-y_p)**2))
-        self.paths[ind,3] = np.arccos(c/ip)
+        self.paths['AoA'][ind] = np.arccos(c/ip)
 
     def update_positions(self):    
         # rx constant motion
@@ -218,9 +234,9 @@ class channel_sim():
 
     def plot_pos(self):
         """
-            plots the environmental disposition.
+            Plots the environmental disposition.
         """
-        print('AoA : LoS, t, s1, s2, ... \n' + str(np.rad2deg(self.paths[:,3])))
+        print('AoA : LoS, t, s1, s2, ... \n' + str(np.rad2deg(self.paths['AoA'])))
         plt.plot(self.positions[0,0],self.positions[0,1],'ro',label='rx')
         plt.plot(self.positions[1,0],self.positions[1,1],'go',label='tx')
         plt.plot(self.positions[2,0],self.positions[2,1],'r+',label='target')
@@ -237,15 +253,15 @@ class channel_sim():
     
     def dist(self, p1, p2):
         """
-            return distance between two points in 2D.
-            p1,p2: [x,y] Cartesian coordinates
+            Returns distance between two points in 2D.
+            p1,p2: [x,y] Cartesian coordinates.
         """
         return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**(.5)
     
-    def radar_eq(self,pos,rcs=1, scatter=False):
+    def radar_eq(self, pos, rcs=1, scatter=False):
         """
-            returns the attenuation due to a reflector at position pos.
-            pos: [x,y] Cartesian coordinates
+            Returns the attenuation due to a reflector at position pos.
+            pos: [x,y] Cartesian coordinates.
         """
         G_tx = 1#10**(20/10) ## assume tx gain for reflectors
         if scatter:
@@ -256,43 +272,44 @@ class channel_sim():
     
     def path_loss(self):
         """
-            returns the attenuation due to path loss (LoS).
+            Returns the attenuation due to path loss (LoS).
         """
         return (self.G_tx*self.G_rx*self.l/((4*np.pi*self.dist(self.positions[0,:],self.positions[1,:]))**2))**(0.5)
     
     def get_delays(self):
         """
-            compute delays for each path.
+            Computes delays for each path.
         """
-        paths=np.zeros(len(self.paths))
+        paths=np.zeros(len(self.paths['delay']))
         paths[0] = self.dist(self.positions[0,:],self.positions[1,:])/3e8
-        for i in range(1,len(self.paths)):
+        for i in range(1,len(paths)):
             paths[i] = (self.dist(self.positions[1,:],self.positions[i+1,:])+self.dist(self.positions[i+1,:],self.positions[0,:]))/3e8
         return paths
             
     def compute_phases(self):
         """
-            compute phases for each path.
+            Computes phases for each path.
             LoS phase initial offset=0.
         """
-        self.paths[0,1] = (self.v_rx/self.l*np.cos(self.eta)) # LoS
-        self.paths[1,1] = (self.fd + self.v_rx/self.l*np.cos(self.paths[1,3]-self.eta) )#+ np.random.uniform(0,2*np.pi)) # target
-        for i in range(2,len(self.paths)):
-            self.paths[i,1] = (self.v_rx/self.l*np.cos(self.paths[i,3]-self.eta) )#+ np.random.uniform(0,2*np.pi)) # static
+        self.paths['phase'][0] = (self.v_rx/self.l*np.cos(self.eta)) # LoS
+        self.paths['phase'][1] = (self.fd + self.v_rx/self.l*np.cos(self.paths['AoA'][1]-self.eta) ) # target
+        for i in range(2,len(self.paths['phase'])):
+            self.paths['phase'][i] = (self.v_rx/self.l*np.cos(self.paths['AoA'][i]-self.eta) ) # static
 
     
     def compute_attenuations(self):
         """
-            compute attenuations for each path.
+            Computes attenuations for each path,
+            all paths besides the LoS have also a random phase offset due to reflections.
         """
-        self.paths[0,2] = self.path_loss()
-        for i in range(1,len(self.paths)):
-            self.paths[i,2] = self.radar_eq(self.positions[i+1])
+        self.paths['gain'][0] = self.path_loss()
+        for i in range(1,len(self.paths['gain'])):
+            self.paths['gain'][i] = self.radar_eq(self.positions[i+1]) * np.exp(1j * np.random.uniform(0,2*np.pi))
     
     def load_trn_field(self):
         """
-            load TRN field adding upsampling with rate self.us.
-            t' = t / us
+            Loads TRN field adding upsampling with rate self.us
+            ts = t / us
         """
         trn_unit = loadmat('cir_estimation_sim/TRN_unit.mat')['TRN_SUBFIELD'].squeeze()
         self.trn_field = np.zeros(len(trn_unit)*self.us)
@@ -301,30 +318,32 @@ class channel_sim():
         
     def compute_cir(self, init, plot=False):
         """
-            compute channel impulse response
+            Computes channel impulse response.
+            init: if it is the first cir sample compute phases and attenuations.
         """
         up_cir = np.zeros(256*self.us).astype(complex)
         cir = np.zeros(256).astype(complex)
         if init:
-            assert all(self.paths[:,0]==self.get_delays())
+            assert all(self.paths['delay']==self.get_delays())
             self.compute_phases()
             self.compute_attenuations()
-        delays = np.floor(self.paths[:,0]*self.B)
+        delays = np.floor(self.paths['delay']*self.B)
         for i,d in enumerate(delays.astype(int)):
-            up_cir[d*self.us] = up_cir[d*self.us] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
-            cir[d] = cir[d] + self.paths[i,2] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths[i,1])
-        assert np.count_nonzero(cir)==len(self.paths[:,0]) # check that all paths are separable
+            up_cir[d*self.us] = up_cir[d*self.us] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths['phase'][i])
+            cir[d] = cir[d] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths['phase'][i])
+        assert np.count_nonzero(cir)==len(self.paths['delay']) # check that all paths are separable
         if plot:
             plt.title('upsampled cir')
             plt.grid()
             plt.stem(abs(up_cir),markerfmt='D')
             plt.show()
-        self.up_cir = up_cir/abs(self.paths[0,2])
-        self.cir = cir/abs(self.paths[0,2])
+        # assuming signal amplitude=1
+        self.up_cir = up_cir/abs(self.paths['gain'][0])
+        self.cir = cir/abs(self.paths['gain'][0])
 
     def gen_noise(self, len):
         """
-            returns noise of specified length with power computed from the desired SNR level.
+            Returns noise of specified length with power computed from the desired SNR level.
             len: noise length.
         """
         snr_lin = 10 ** (self.SNR / 10)
@@ -336,11 +355,11 @@ class channel_sim():
 
     def get_rxsignal(self, plot=False):
         """
-            returns the received signal after: transmission, channel, and reception with additive noise.
+            Returns the received signal after: transmission, channel, and reception with additive noise.
             plot: wether to plot the received signal.
         """
         ### tx rrcos filter ###
-        filt = np.convolve(self.trn_field,self.h_rrc)# + 1j*np.convolve(self.trn_field.imag,self.h_rrc.astype((complex)))
+        filt = np.convolve(self.trn_field,self.h_rrc)
         filt_delay = int((len(self.h_rrc)-1)/2)
         filt = filt[filt_delay:]#compensate for the filters time shift 
         ### physical channel ###
@@ -349,7 +368,7 @@ class channel_sim():
         noise = self.gen_noise(len(rx_signal))
         rx_signal = rx_signal + noise
         ### rx rrcos filter ###
-        rx_signal = np.convolve(rx_signal,np.flip(self.h_rrc))# + 1j*np.convolve(rx_signal.imag,np.flip(self.h_rrc))
+        rx_signal = np.convolve(rx_signal,self.h_rrc)
         rx_signal = rx_signal[filt_delay:]#compensate for the filters time shift 
         if plot:
             plt.plot(filt.real)
@@ -362,20 +381,22 @@ class channel_sim():
 
     def sampling(self, up_rx_signal, plot=False):
         """
-            compute the sampled received signal after a synchronization performed exploiting the first Golay sequence.
-            up_rx_signal: signal to sample;
+            Computes the sampled received signal after a synchronization performed exploiting the first Golay sequence.
+            up_rx_signal: signal to sample,
             plot: wether to plot the the selected samples of the original signal.
         """
+        # synchronization by correlating the first Golay sequence 
         Ga = self.load_Golay_seqs()[0]
         up_Ga = np.zeros(len(Ga)*self.us)
         up_Ga[::self.us] = Ga
         rrcos_up_Ga = np.convolve(up_Ga,self.h_rrc) 
-        rcos_up_Ga = np.convolve(rrcos_up_Ga,np.flip(self.h_rrc)) 
+        rcos_up_Ga = np.convolve(rrcos_up_Ga,self.h_rrc) 
         xcorr = np.correlate(up_rx_signal, rcos_up_Ga)[0:256*self.us] # check just for the first peak 
         #plt.plot(xcorr.real)
         #plt.plot(abs(xcorr))
         #plt.show()
         start = np.argmax(abs(xcorr))%self.us
+        # sampling from start to sample on the peaks
         up_rx_signal = up_rx_signal[start:]
         self.rx_signal = up_rx_signal[::self.us]
         if plot:
@@ -391,7 +412,7 @@ class channel_sim():
 
     def add_cfo(self, h_est):
         """
-            return the cir estimate after adding the channel frequency offset shift.
+            Returns the cir estimate after adding the channel frequency offset shift.
             h_est: signal (cir estimate).
         """
         self.f_off += np.random.normal(0,self.std_w)
@@ -404,7 +425,7 @@ class channel_sim():
 
     def estimate_CIR(self, signal, plot=False):
         """
-            returns the estimated channel impulse response performing correlation with the TRN field Golay sequences.
+            Returns the estimated channel impulse response performing correlation with the TRN field Golay sequences.
             signal: received, sampled signal.
         """
         Ga,Gb = self.load_Golay_seqs()
@@ -461,15 +482,15 @@ class channel_sim():
     
     def get_phases(self, h, from_index= True, plot=False):
         """
-            return cir phases [LoS,t,s1,...,sn_static].
-            h: cir;
-            from_index: if True use the correct index to locate peaks, else performs peak detection;
+            Returns cir phases [LoS,t,s1,...,sn_static].
+            h: cir,
+            from_index: if True use the correct index to locate peaks, else performs peak detection,
             plot: wether to plot the selected paths from the given cir.
         """
         if from_index:
-            ind = np.floor(self.paths[:,0]*self.B).astype(int) # from paths delay
+            ind = np.floor(self.paths['delay']*self.B).astype(int) # from paths delay
         else:
-            ind = np.argsort(np.abs(h))[-len(self.paths[:,0]):] # from cir peaks
+            ind = np.argsort(np.abs(h))[-len(self.paths['delay']):] # from cir peaks
         phases = np.angle(h[ind])
         self.phases[:,0] = self.phases[:,1]
         self.phases[:,1] = phases
@@ -485,10 +506,11 @@ class channel_sim():
     
     def solve_system(self, phases, zetas):
         """
-            Solve the system for the received input parameters and returns the unknowns of the system.
-
-            phases: measured phases;
+            Solves the system for the received input parameters. 
+            phases: measured phases,
             zetas: angle of arrivals.
+
+            returns the unknowns of the system.
         """       
         alpha = phases[2]*(np.cos(zetas[1])-1)-(phases[1]*(np.cos(zetas[2])-1))
         beta = phases[1]*np.sin(zetas[2])-(phases[2]*np.sin(zetas[1]))
@@ -508,12 +530,12 @@ class channel_sim():
     
     def system(self, x, phases, n_zetas):
         """
-            Define the system to solve it using the non linear least-square method, for at least 4 measured phases (i.e. 2 static paths).
-            Returns an array representing the system.
-
-            x = [f_D, v, eta]: system unknowns;
-            phases: measured phases;
+            Defines the system to solve it using the non linear least-square method, for at least 4 measured phases (i.e. 2 static paths).
+            x = [f_D, v, eta]: system unknowns,
+            phases: measured phases,
             zetas: angle of arrivals.
+
+            returns an array representing the system.
         """
         results = []
         #target path
@@ -526,8 +548,7 @@ class channel_sim():
     def check_initial_values(self, x0):
         """
             Check if the selected initial values are within the known intervals and change them to default value if not.
-
-            x0 = [f_D(0), v(0), eta(0)]: initial values.
+            x0: [f_D(0), v(0), eta(0)]: initial values.
         """
         fd_max = 2/self.l*self.vmax
         if x0[0]<-fd_max or x0[0]>fd_max:
@@ -538,6 +559,18 @@ class channel_sim():
         return x0  
     
     def simulation(self, x_max, y_max, N, interval, path, relative=True, save=True):
+        """
+            Performs the simulation.
+            x_max: max x Cartesian coordinate,
+            y_max: max y Cartesian coordinate,
+            N: number of simulation iterations,
+            interval: number of frames during which parameters are considered constant,
+            path: path to save output errors,
+            relative: wether to compute relative errors (if False computes absolute errors),
+            save: wether to save the output errors.
+
+            returns target Doppler frequency estimate relative error.
+        """
         f_d_error = []
         self.load_trn_field()
         
@@ -558,7 +591,7 @@ class channel_sim():
                 self.compute_cir(init=False)
                 up_rx_signal = self.get_rxsignal(plot=False)
                 self.sampling(up_rx_signal,plot=False)
-                h = self.estimate_CIR(self.rx_signal,plot=False)
+                h = self.estimate_CIR(self.rx_signal,plot=True)
                 # add cfo 
                 h = self.add_cfo(h)
                 self.get_phases(h,plot=False)
@@ -578,7 +611,7 @@ class channel_sim():
             for i,p in enumerate(phase_diff):
                 if p>np.pi:
                     phase_diff[i] = p - 2*np.pi
-            AoA = self.paths[1:,3] + np.random.normal(0,self.AoAstd,self.n_static+1)
+            AoA = self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)
             eta, f_d, v = self.solve_system(phase_diff,AoA)
             x0 = [f_d, v, eta]
             x0 = self.check_initial_values(x0)
@@ -589,7 +622,7 @@ class channel_sim():
                 #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
                 if err>1:
                    print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                   print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths[1:,3],self.paths[1:,3]-self.eta))
+                   print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
                 f_d_error.append(err)
             else:
                 f_d_error.append(np.abs(self.fd-np.mean(results.x[0])))
@@ -600,21 +633,6 @@ class channel_sim():
                     np.save(path+'fd_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
         return f_d_error
     
-    def plot_boxplot(self, path, errors, xlabel, ylabel, xticks, title, name=''):
-        """
-            Plot boxplots using seaborn for the given list of errors.
-        """
-        plt.figure(figsize=(12,8))
-        plt.ylabel(ylabel)
-        plt.xlabel(xlabel)
-        plt.grid()
-        ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
-        plt.xticks(np.arange(len(xticks)), xticks)
-        plt.title(title)
-        #plt.savefig(path+name+'.png')
-        plt.show()
-        #tik.save(path+name+'.tex')
-        plt.close()
 
 def varying_static_paths():
     for n_static in [2,4,6,8,10]:
@@ -641,10 +659,8 @@ def varying_interval():
             print('wavelength: ' + str(l) + ' m')
             ch_sim = channel_sim(SNR=20, AoAstd=0, l=l)
             i = int(interval*1e-3/ch_sim.T)
-            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=i, path='data/varying_interval/', save=True)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=i, path='data/varying_interval/', save=False)
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-
-
 
 
 

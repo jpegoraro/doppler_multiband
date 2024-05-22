@@ -68,6 +68,9 @@ def simulate_channel(params, ncir=256, ncfr=256, add_to=True, add_cfo=True):
 
     cir_clean = np.fft.ifft(H_clean * np.hanning(ncfr))
     cir_tot = np.fft.ifft(Htot * np.hanning(ncfr))
+    print(delays*params["B"])
+    plt.plot(abs(cir_clean))
+    plt.show()
 
     return (
         cir_clean / np.abs(amps[0]),
