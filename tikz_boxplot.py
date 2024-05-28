@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('plots/new_sim/2_static/p_std/fd_errors_zeta_std1.0.tex','plots/new_sim/2_static/p_std/fd_error.tex',4)
+tikz_boxplot('cir_estimation_sim/plot/var_intervalfc_28.tex','cir_estimation_sim/plot/var_interval.tex',5)

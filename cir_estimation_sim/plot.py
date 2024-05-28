@@ -15,10 +15,10 @@ def plot_boxplot(path, errors, xlabel, ylabel, xticks, title, name=''):
     ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
     plt.xticks(np.arange(len(xticks)), xticks)
     plt.title(title)
-    plt.ylim(top=0.25)
+    #plt.ylim(top=0.25)
     plt.savefig(path+name+'.png')
+    tik.save(path+name+'.tex')
     plt.show()
-    #tik.save(path+name+'.tex')
     plt.close()
 
 def load_data(path):
@@ -38,10 +38,10 @@ def load_data(path):
     return data
 
 
-path = 'cir_estimation_sim/data/varying_interval'
+path = 'cir_estimation_sim/data/varying_snr'
 data = load_data(path)
-labels = [25,50,100,200,400]
-#labels = [0,10,20,30]
+#labels = [25,50,100,200,400]
+labels = [-5,0,10,20,30]
 #labels = [2,4,6,8,10]
 fcs = [60,28]
 for fc in fcs:
@@ -51,4 +51,4 @@ for fc in fcs:
             if d[path.split('_')[3]]==s and d['freq']==fc:
                 errors.append(d['data'])
 
-    plot_boxplot('cir_estimation_sim/plot/',errors,'interval','fD relative error',np.array(labels)*0.08,'varying interval, fc=%s GHz' %(fc),'var_intervalfc_%s' %(fc))
+    plot_boxplot('cir_estimation_sim/plot/',errors,'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'var_snrfc_%s' %(fc))

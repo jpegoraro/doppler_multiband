@@ -583,7 +583,7 @@ class channel_sim():
             up_rx_signal = self.get_rxsignal(plot=False)
             self.sampling(up_rx_signal,plot=False)
             h = self.estimate_CIR(self.rx_signal,plot=False)
-            self.get_phases(h)
+            self.get_phases(h)##############################################################################
             for p in range(1,len(self.phases[:,1])):
                     self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
             for i in range(1,interval):
@@ -591,10 +591,10 @@ class channel_sim():
                 self.compute_cir(init=False)
                 up_rx_signal = self.get_rxsignal(plot=False)
                 self.sampling(up_rx_signal,plot=False)
-                h = self.estimate_CIR(self.rx_signal,plot=True)
+                h = self.estimate_CIR(self.rx_signal,plot=False)
                 # add cfo 
                 h = self.add_cfo(h)
-                self.get_phases(h,plot=False)
+                self.get_phases(h,plot=False)#####################################################################
                 ### remove LoS from other paths ###
                 for p in range(1,len(self.phases[:,1])):
                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
@@ -644,12 +644,12 @@ def varying_static_paths():
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
 
 def varying_snr():
-    for snr in [0,10,20,30]:
+    for snr in [-10,0,10,20,30]:
         for l in [0.005,0.0107]:
             print('SNR: ' + str(snr) + ' dB')
             print('wavelength: ' + str(l) + ' m')
             ch_sim = channel_sim(SNR=snr, l=l)
-            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=10, path='data/varying_snr/', save=True)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=200, path='data/varying_snr/', save=False)
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
 
 def varying_interval():
@@ -665,4 +665,5 @@ def varying_interval():
 
 
 if __name__=='__main__':
-	varying_interval()
+	varying_snr()
+    
