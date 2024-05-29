@@ -10,7 +10,7 @@ import time
 class channel_sim():
 
     def __init__(self, vmax, SNR=20, AoAstd=np.deg2rad(5), G_tx=1, G_rx=1, P_tx=1, l=0.005, 
-                 n_static=2, us=16, tx=None, rx=None):
+                 n_static=2, us=16, static_rx=False, tx=None, rx=None):
         """
             vmax: maximum receiver speed [m/s], (60 GHz-->vmax=5 m/s, 28 GHz-->vmax=10 m/s, 5 GHz-->vmax=20 m/s) these are just reasonable values
             SNR: signal to noise ratio [dB],
@@ -22,11 +22,14 @@ class channel_sim():
             us: up sampling rate (ts = t / us),
             tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m].
         """
-        self.vrx = None # speed vector
-        self.v_rx = None # speed modulus
         self.eta = None # speed direction w.r.t. LoS
+        vmin = 0.5 # if RX moves with a speed below 0.5 m/s it is considered static
+        self.v_rx = np.random.uniform(vmin,vmax) # speed modulus
+        if static_rx:
+            self.v_rx = 0
+        self.vrx = None # speed vector
         fd_max = vmax/l # max achievable Doppler frequency
-        fd_min = 0.5/l # if target moves with a speed below 0.5 m/s it is considered static
+        fd_min = vmin/l # if target moves with a speed below 0.5 m/s it is considered static
         self.fd = np.random.uniform(fd_min,fd_max)
         if np.random.rand()>0.5:
             self.fd = - self.fd
@@ -160,10 +163,10 @@ class channel_sim():
                 res_min = 5
                 x_max = 2*x_max
                 y_max = 2*y_max
-            self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
-            self.v_rx = (self.vrx[0]**2+self.vrx[1]**2)**(0.5) # speed modulus
-            alpha = np.arccos(3e8/(2*self.B*res_min))
-            assert 2*alpha<np.pi and 2*(2*np.pi-alpha)>3*np.pi 
+            alpha = np.random.uniform(0,2*np.pi) # speed direction w.r.t. positive x-axis
+            self.vrx = [self.v_rx*np.cos(alpha),self.v_rx*np.sin(alpha)] # speed vector
+            th = np.arccos(3e8/(2*self.B*res_min)) # threshold to check the system minimum distance resolution 
+            assert 2*th<np.pi and 2*(2*np.pi-th)>3*np.pi 
             self.positions[0,:] = [x_max,y_max]
             self.positions[1,:] = [0,0]
 
@@ -174,9 +177,9 @@ class channel_sim():
                 beta = np.pi
                 start = time.time()
                 while True:
-                    # if time.time()-start>1:
-                    #     self.get_positions(x_max,y_max)
-                    #     break
+                    if time.time()-start>1:
+                        self.get_positions(x_max,y_max)
+                        break
                     check = []
                     for j in range(i):
                         check.append(self.dist(self.positions[j,:],[x,y])<dist_min)
@@ -197,7 +200,7 @@ class channel_sim():
                     else:
                         beta = np.arccos(d/ip)
                     assert int(ip**2)==int(d**2+((self.positions[0,0]-x_p)**2+(self.positions[0,1]-y_p)**2))
-                    if beta<2*alpha or (beta>np.pi and beta<3*np.pi) or beta>2*(2*np.pi-alpha):
+                    if beta<2*th or (beta>np.pi and beta<3*np.pi) or beta>2*(2*np.pi-th):
                         self.beta[i-2] = beta
                         self.positions[i,:] = x,y
                         # path delay for non-LoS
@@ -217,7 +220,6 @@ class channel_sim():
                     x = np.random.uniform(0,x_max)
                     y = np.random.uniform(0,y_max)
             #while True:
-            alpha = np.arctan(self.vrx[1]/self.vrx[0]) # speed direction w.r.t. positive x-axis
             if self.vrx[0]<0:
                 alpha = alpha + np.pi
             beta = np.arctan((self.positions[0,1]-self.positions[1,1])/(self.positions[0,0]-self.positions[1,0])) # LoS path direction w.r.t. positive x-axis
@@ -621,7 +623,7 @@ class channel_sim():
         x0[2] = x0[2]%(2*np.pi)
         return x0  
     
-    def simulation(self, x_max, y_max, N, interval, path, relative=True, save=True):
+    def simulation(self, x_max, y_max, N, interval, path, relative=True, save=True, save_time=False):
         """
             Performs the simulation.
             x_max: max x Cartesian coordinate,
@@ -635,6 +637,11 @@ class channel_sim():
             returns target Doppler frequency estimate relative error.
         """
         f_d_error = []
+        nls_time = []
+        eta_abs_error = []
+        eta_rel_error = []
+        v_abs_error = []
+        v_rel_error = []
         
         #for j in tqdm(range(N),dynamic_ncols=True):
         for j in range(N):
@@ -684,13 +691,21 @@ class channel_sim():
                 if p>np.pi:
                     phase_diff[i] = p - 2*np.pi
             AoA = self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)
-            eta, f_d, v = self.solve_system(phase_diff,AoA)
-            x0 = [f_d, v, eta]
-            x0 = self.check_initial_values(x0)
+            if self.v_rx==0:
+                eta = 0
+                f_d = phase_diff[0]/(2*np.pi*self.T)
+                v = 0
+                x0 = [f_d, v, eta]
+            else:
+                eta, f_d, v = self.solve_system(phase_diff,AoA)
+                x0 = [f_d, v, eta]
+                x0 = self.check_initial_values(x0)
+            start = time.time()
             results = least_squares(self.system, x0, args=(phase_diff, AoA))
+            nls_time.append(time.time()-start)
 
             if relative:
-                err = np.abs((self.fd-np.mean(results.x[0]))/self.fd)
+                err = abs((self.fd-np.mean(results.x[0]))/self.fd)
                 #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
                 if err>1:
                    print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
@@ -698,14 +713,36 @@ class channel_sim():
                    print('fd='+str(self.fd))
                 f_d_error.append(err)
             else:
-                f_d_error.append(np.abs(self.fd-np.mean(results.x[0])))
+                f_d_error.append(abs(self.fd-np.mean(results.x[0])))
+            if self.v_rx!=0:
+                eta_abs_error.append(abs(self.eta-np.mean(results.x[2])))
+                eta_rel_error.append(abs((self.eta-np.mean(results.x[2]))/self.eta))
+                v_abs_error.append(abs(self.v_rx-np.mean(results.x[1])))
+                v_rel_error.append(abs((self.v_rx-np.mean(results.x[1]))/self.v_rx))
         if save:
                 if self.l==0.005:
                     np.save(path+'fd_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
-                elif self.l==0.107:
+                    if self.v_rx!=0:
+                        np.save(path+'eta_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'v_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'v_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                elif self.l==0.0107:
                     np.save(path+'fd_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
+                    if self.v_rx!=0:
+                        np.save(path+'eta_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'v_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'v_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
                 else:
                     np.save(path+'fd_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
+                    if self.v_rx!=0:
+                        np.save(path+'eta_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'v_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'v_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                if save_time:
+                    np.save(path+'nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
         return f_d_error
     
 
@@ -740,15 +777,15 @@ def varying_interval():
 
 
 if __name__=='__main__':
-    ch_sim = channel_sim(vmax=10, SNR=20, AoAstd=np.deg2rad(5), l=0.0107)
+    ch_sim = channel_sim(vmax=10, SNR=20, AoAstd=np.deg2rad(5), l=0.0107, static_rx=True)
     fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
     print('average fd estimate relative error: ' + str(np.mean(fd_error)))
     print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    ch_sim = channel_sim(vmax=20, SNR=20, AoAstd=np.deg2rad(5), l=0.06)
+    ch_sim = channel_sim(vmax=20, SNR=20, AoAstd=np.deg2rad(5), l=0.06, static_rx=True)
     fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
     print('average fd estimate relative error: ' + str(np.mean(fd_error)))
     print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005)
+    ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005, static_rx=True)
     fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
     print('average fd estimate relative error: ' + str(np.mean(fd_error)))
     print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
