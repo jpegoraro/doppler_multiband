@@ -9,27 +9,27 @@ import time
 
 class channel_sim():
 
-    def __init__(self, T=0.08e-3, SNR=20, AoAstd=np.deg2rad(5), G_tx=1, G_rx=1, P_tx=1, l=0.005, 
-                 n_static=2, us=16, vmax=5, tx=None, rx=None):
+    def __init__(self, vmax, SNR=20, AoAstd=np.deg2rad(5), G_tx=1, G_rx=1, P_tx=1, l=0.005, 
+                 n_static=2, us=16, tx=None, rx=None):
         """
-            v_rx: receiver speed vector (2 components)[m/s],
-            fd: Doppler shift caused by target movement [Hz],
-            T: interpacket time (cir samples period) [s],
+            vmax: maximum receiver speed [m/s], (60 GHz-->vmax=5 m/s, 28 GHz-->vmax=10 m/s, 5 GHz-->vmax=20 m/s) these are just reasonable values
             SNR: signal to noise ratio [dB],
             AoAstd: std of the noise added to the angles of arrivals measurements [rad],
             G_tx/G_rx: transmitter/receiver antenna gain,
             P_tx: transmitted power,
             l: wavelength [m],
             n_static: number of static paths,
-            B: bandwidth [Hz],
             us: up sampling rate (ts = t / us),
-            vmax: maximum receiver speed [m/s],
             tx/rx: transmitter/receiver Cartesian coordinates(default [0,0]/[x_max,y_max]) [m].
         """
         self.vrx = None # speed vector
         self.v_rx = None # speed modulus
         self.eta = None # speed direction w.r.t. LoS
-        self.fd = None
+        fd_max = vmax/l # max achievable Doppler frequency
+        fd_min = 0.5/l # if target moves with a speed below 0.5 m/s it is considered static
+        self.fd = np.random.uniform(fd_min,fd_max)
+        if np.random.rand()>0.5:
+            self.fd = - self.fd
         self.f_off = 0
         self.vmax = vmax
         
@@ -40,7 +40,7 @@ class channel_sim():
         self.P_tx = P_tx
         self.l = l
         self.n_static = n_static
-        self.T = T # interpacket time (cir samples period)
+        self.T = 1/(6*fd_max) # interpacket time (cir samples period)
         self.us = us
         self.tx = tx
         self.rx = rx
@@ -162,9 +162,6 @@ class channel_sim():
                 y_max = 2*y_max
             self.vrx = np.random.uniform(0.5,self.vmax,2) # speed vector
             self.v_rx = (self.vrx[0]**2+self.vrx[1]**2)**(0.5) # speed modulus
-            self.fd = np.random.uniform(200,2000)
-            if np.random.rand()>0.5:
-                self.fd = - self.fd
             alpha = np.arccos(3e8/(2*self.B*res_min))
             assert 2*alpha<np.pi and 2*(2*np.pi-alpha)>3*np.pi 
             self.positions[0,:] = [x_max,y_max]
@@ -416,7 +413,7 @@ class channel_sim():
             plt.grid()
             plt.plot(rx_signal.real)
             plt.show()
-        return self.add_cfo(rx_signal)
+        return rx_signal
 
     def sampling(self, up_rx_signal, plot=False):
         """
@@ -452,15 +449,22 @@ class channel_sim():
     def get_rx_ofdm(self, ofdm_symbol):
         H  = np.fft.fft(self.cir)
         Y = H*ofdm_symbol
-        return self.add_cfo(Y)
+        return Y
 
     def add_cfo(self, signal):
         """
-            Returns the cir estimate after adding the channel frequency offset shift.
+            Returns the signal after adding the channel frequency offset shift.
             signal: signal (cir estimate).
         """
         self.f_off += np.random.normal(0,self.std_w)
         return signal * np.exp(1j*2*np.pi*self.f_off*self.k*self.T)       
+    
+    def add_po(self, signal):
+        """
+            Returns the signal after adding the phase noise shift.
+            signal: signal (cir estimate).
+        """
+        return signal * np.exp(1j*np.random.normal(0,self.std_w))
         
     def load_Golay_seqs(self):
         Ga = loadmat("cir_estimation_sim/Ga128.mat")["Ga"].squeeze()
@@ -645,7 +649,7 @@ class channel_sim():
             else:
                 Y = self.get_rx_ofdm(self.tx_signal)
                 h = self.estimate_ofdm_CIR(Y, plot=False)
-            self.get_phases(h)##############################################################################
+            self.get_phases(h)
             for p in range(1,len(self.phases[:,1])):
                     self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
             for i in range(1,interval):
@@ -661,8 +665,8 @@ class channel_sim():
                     Y += noise
                     h = self.estimate_ofdm_CIR(Y, plot=False)
                 # add cfo 
-                #h = self.add_cfo(h)
-                self.get_phases(h,plot=False)#####################################################################
+                h = self.add_po(self.add_cfo(h))
+                self.get_phases(h,plot=False)
                 ### remove LoS from other paths ###
                 for p in range(1,len(self.phases[:,1])):
                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
@@ -688,9 +692,10 @@ class channel_sim():
             if relative:
                 err = np.abs((self.fd-np.mean(results.x[0]))/self.fd)
                 #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                #if err>1:
-                   #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                   #print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
+                if err>1:
+                   print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
+                   print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
+                   print('fd='+str(self.fd))
                 f_d_error.append(err)
             else:
                 f_d_error.append(np.abs(self.fd-np.mean(results.x[0])))
@@ -735,13 +740,15 @@ def varying_interval():
 
 
 if __name__=='__main__':
-    ch_sim = channel_sim(SNR=20, AoAstd=np.deg2rad(5), l=0.0107)
+    ch_sim = channel_sim(vmax=10, SNR=20, AoAstd=np.deg2rad(5), l=0.0107)
     fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-    ch_sim = channel_sim(SNR=20, AoAstd=np.deg2rad(5), l=0.06)
-    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-    ch_sim = channel_sim(SNR=20, AoAstd=np.deg2rad(5), l=0.005)
+    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
+    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    ch_sim = channel_sim(vmax=20, SNR=20, AoAstd=np.deg2rad(5), l=0.06)
     fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
+    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005)
+    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
+    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
     print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
