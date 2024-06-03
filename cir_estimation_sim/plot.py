@@ -25,6 +25,8 @@ def load_data(path):
     files = os.listdir(path)
     data = []
     for f in files:
+        if f=='eta' or f=='speed' or f=='time':
+            continue
         info = f.split('_')
         data.append(
             {
@@ -38,17 +40,18 @@ def load_data(path):
     return data
 
 
-path = 'cir_estimation_sim/data/varying_snr'
-data = load_data(path)
+path = 'data/varying_snr'
+subdir = ''#'/aoa5'
+data = load_data(path+subdir)
 #labels = [25,50,100,200,400]
 labels = [-5,0,10,20,30]
 #labels = [2,4,6,8,10]
-fcs = [60,28]
+fcs = [28,5]
 for fc in fcs:
     errors = []
     for s in labels:
         for d in data:
-            if d[path.split('_')[3]]==s and d['freq']==fc:
+            if d[path.split('_')[-1]]==s and d['freq']==fc:
                 errors.append(d['data'])
 
     plot_boxplot('cir_estimation_sim/plot/',errors,'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'var_snrfc_%s' %(fc))

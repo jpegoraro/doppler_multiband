@@ -30,6 +30,7 @@ class channel_sim():
         self.vrx = None # speed vector
         fd_max = vmax/l # max achievable Doppler frequency
         fd_min = vmin/l # if target moves with a speed below 0.5 m/s it is considered static
+        fd_min = 100
         self.fd = np.random.uniform(fd_min,fd_max)
         if np.random.rand()>0.5:
             self.fd = - self.fd
@@ -58,13 +59,15 @@ class channel_sim():
             self.delta_f = 240e3 # subcarrier spacing [Hz]
             self.n_sc = 1666 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
-            self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
+            #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
+            self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
         if l==0.06:
             # 802.11ax parameters
             self.delta_f = 78.125e3 # subcarrier spacing [Hz]
             self.n_sc = 2048 # number of subcarriers
             self.B =  self.n_sc*self.delta_f # bandwidth [Hz] (160 MHz)
-            self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
+            #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
+            self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
         self.cir = None
         self.rx_signal = None
         self.k = 0 # dicrete time index
@@ -84,7 +87,7 @@ class channel_sim():
         n = int(1e-3/self.T) # number of samples in 1 ms
         fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
         self.std_w = fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max        
-    
+        a = 0
     def generate_16QAMsymbols(self, n_sc, unitAveragePower=True):
         txsymbols = np.random.randint(0,16,n_sc)
         QAM_mapper = []
@@ -451,7 +454,8 @@ class channel_sim():
     def get_rx_ofdm(self, ofdm_symbol):
         H  = np.fft.fft(self.cir)
         Y = H*ofdm_symbol
-        return Y
+        noise = self.gen_noise(len(Y))
+        return Y + noise
 
     def add_cfo(self, signal):
         """
@@ -645,6 +649,7 @@ class channel_sim():
         
         #for j in tqdm(range(N),dynamic_ncols=True):
         for j in range(N):
+            print("iteration: ", j, end="\r")
             phase_diff = []
             self.k = 0
             self.get_positions(x_max,y_max,plot=False)
@@ -656,6 +661,8 @@ class channel_sim():
             else:
                 Y = self.get_rx_ofdm(self.tx_signal)
                 h = self.estimate_ofdm_CIR(Y, plot=False)
+            # add cfo 
+            h = self.add_po(self.add_cfo(h))
             self.get_phases(h)
             for p in range(1,len(self.phases[:,1])):
                     self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
@@ -668,8 +675,6 @@ class channel_sim():
                     h = self.estimate_CIR(self.rx_signal,plot=False)
                 else:
                     Y = self.get_rx_ofdm(self.tx_signal)
-                    noise = self.gen_noise(len(Y))
-                    Y += noise
                     h = self.estimate_ofdm_CIR(Y, plot=False)
                 # add cfo 
                 h = self.add_po(self.add_cfo(h))
@@ -706,11 +711,11 @@ class channel_sim():
 
             if relative:
                 err = abs((self.fd-np.mean(results.x[0]))/self.fd)
-                #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                if err>1:
-                   print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                   print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
-                   print('fd='+str(self.fd))
+                #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err), end="\r")
+                # if err>1:
+                #    print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
+                #    print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
+                #    print('fd='+str(self.fd))
                 f_d_error.append(err)
             else:
                 f_d_error.append(abs(self.fd-np.mean(results.x[0])))
@@ -723,26 +728,30 @@ class channel_sim():
                 if self.l==0.005:
                     np.save(path+'fd_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
                     if self.v_rx!=0:
-                        np.save(path+'eta_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'v_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'v_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                    if save_time:
+                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
                 elif self.l==0.0107:
                     np.save(path+'fd_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
                     if self.v_rx!=0:
-                        np.save(path+'eta_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'v_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'v_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                    if save_time:
+                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
                 else:
                     np.save(path+'fd_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
                     if self.v_rx!=0:
-                        np.save(path+'eta_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'v_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'v_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
-                if save_time:
-                    np.save(path+'nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
+                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
+                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
+                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
+                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
+                    if save_time:
+                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
         return f_d_error
     
 
@@ -754,15 +763,21 @@ def varying_static_paths():
             ch_sim = channel_sim(SNR=20, l=l, n_static=n_static)
             fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=2, path='data/varying_n/', save=True)
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+            print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
 
 def varying_snr():
-    for snr in [-10,0,10,20,30]:
-        for l in [0.005,0.0107]:
+    for snr in [-5,0,10,20,30]:
+        for l in [0.0107,0.06]:
+            if l==0.0107:
+                vmax = 10
+            if l==0.06:
+                vmax=20
             print('SNR: ' + str(snr) + ' dB')
             print('wavelength: ' + str(l) + ' m')
-            ch_sim = channel_sim(SNR=snr, l=l)
-            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=200, path='data/varying_snr/', save=False)
+            ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l)
+            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='data/varying_snr/', save=True)
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+            print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
 
 def varying_interval():
     for interval in [2,4,8,16,32]:
@@ -773,19 +788,21 @@ def varying_interval():
             i = int(interval*1e-3/ch_sim.T)
             fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=i, path='data/varying_interval/', save=False)
             print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+            print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
 
 
 
 if __name__=='__main__':
-    ch_sim = channel_sim(vmax=10, SNR=20, AoAstd=np.deg2rad(5), l=0.0107, static_rx=True)
-    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    ch_sim = channel_sim(vmax=20, SNR=20, AoAstd=np.deg2rad(5), l=0.06, static_rx=True)
-    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005, static_rx=True)
-    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    varying_snr()
+    # ch_sim = channel_sim(vmax=10, SNR=snr, AoAstd=np.deg2rad(5), l=0.0107, static_rx=False)
+    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)
+    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
+    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    # ch_sim = channel_sim(vmax=20, SNR=snr, AoAstd=np.deg2rad(5), l=0.06, static_rx=False)
+    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)
+    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
+    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    # ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005, static_rx=True)
+    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
+    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
+    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
