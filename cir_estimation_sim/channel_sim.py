@@ -28,10 +28,10 @@ class channel_sim():
         if static_rx:
             self.v_rx = 0
         self.vrx = None # speed vector
-        fd_max = vmax/l # max achievable Doppler frequency
-        fd_min = vmin/l # if target moves with a speed below 0.5 m/s it is considered static
-        fd_min = 100
-        self.fd = np.random.uniform(fd_min,fd_max)
+        self.fd_max = vmax/l # max achievable Doppler frequency
+        #fd_min = vmin/l # if target moves with a speed below 0.5 m/s it is considered static
+        self.fd_min = 100
+        self.fd = np.random.uniform(self.fd_min,self.fd_max)
         if np.random.rand()>0.5:
             self.fd = - self.fd
         self.f_off = 0
@@ -44,7 +44,7 @@ class channel_sim():
         self.P_tx = P_tx
         self.l = l
         self.n_static = n_static
-        self.T = 1/(6*fd_max) # interpacket time (cir samples period)
+        self.T = 1/(6*self.fd_max) # interpacket time (cir samples period)
         self.us = us
         self.tx = tx
         self.rx = rx
@@ -164,8 +164,8 @@ class channel_sim():
             """
             if self.l==0.06:
                 res_min = 5
-                x_max = 2*x_max
-                y_max = 2*y_max
+                x_max = 4*x_max
+                y_max = 4*y_max
             alpha = np.random.uniform(0,2*np.pi) # speed direction w.r.t. positive x-axis
             self.vrx = [self.v_rx*np.cos(alpha),self.v_rx*np.sin(alpha)] # speed vector
             th = np.arccos(3e8/(2*self.B*res_min)) # threshold to check the system minimum distance resolution 
@@ -619,9 +619,8 @@ class channel_sim():
             Check if the selected initial values are within the known intervals and change them to default value if not.
             x0: [f_D(0), v(0), eta(0)]: initial values.
         """
-        fd_max = 2/self.l*self.vmax
-        if x0[0]<-fd_max or x0[0]>fd_max:
-            x0[0]=fd_max/2
+        if x0[0]<-self.fd_max or x0[0]>self.fd_max:
+            x0[0]=self.fd_max/2
         if x0[1]<0 or x0[1]>self.vmax:
             x0[1]=2
         x0[2] = x0[2]%(2*np.pi)
@@ -661,11 +660,12 @@ class channel_sim():
             else:
                 Y = self.get_rx_ofdm(self.tx_signal)
                 h = self.estimate_ofdm_CIR(Y, plot=False)
-            # add cfo 
+            ### add cfo ###
             h = self.add_po(self.add_cfo(h))
             self.get_phases(h)
             for p in range(1,len(self.phases[:,1])):
                     self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+            AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
             for i in range(1,interval):
                 self.k = i
                 self.compute_cir(init=False)
@@ -676,17 +676,19 @@ class channel_sim():
                 else:
                     Y = self.get_rx_ofdm(self.tx_signal)
                     h = self.estimate_ofdm_CIR(Y, plot=False)
-                # add cfo 
+                ### add cfo ###
                 h = self.add_po(self.add_cfo(h))
                 self.get_phases(h,plot=False)
                 ### remove LoS from other paths ###
                 for p in range(1,len(self.phases[:,1])):
                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-                ## phase difference ###
+                ### phase difference ###
                 diff = self.phases[:,1] - self.phases[:,0]
                 phase_diff.append(diff)
-
+                ### collect noisy AoA measurements ###
+                AoA.append(self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1))
             ### time average ###
+            AoA = np.mean(np.stack(AoA,axis=0),axis=0)
             phase_diff = np.stack(phase_diff, axis=0)
             phase_diff = self.my_mod_2pi(phase_diff)
             phase_diff = np.mean(phase_diff, axis=0) 
@@ -695,7 +697,7 @@ class channel_sim():
             for i,p in enumerate(phase_diff):
                 if p>np.pi:
                     phase_diff[i] = p - 2*np.pi
-            AoA = self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)
+            
             if self.v_rx==0:
                 eta = 0
                 f_d = phase_diff[0]/(2*np.pi*self.T)
@@ -706,13 +708,17 @@ class channel_sim():
                 x0 = [f_d, v, eta]
                 x0 = self.check_initial_values(x0)
             start = time.time()
-            results = least_squares(self.system, x0, args=(phase_diff, AoA))
+            if len(self.phases)<7:
+                results = least_squares(self.system, x0, args=(phase_diff, AoA), bounds=([-self.fd_max,0,0],[self.fd_max,self.vmax,2*np.pi]))
+            else:
+                results = least_squares(self.system, x0, args=(phase_diff, AoA))
             nls_time.append(time.time()-start)
 
             if relative:
                 err = abs((self.fd-np.mean(results.x[0]))/self.fd)
                 #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err), end="\r")
-                # if err>1:
+                if err>10:
+                    dc=1
                 #    print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
                 #    print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
                 #    print('fd='+str(self.fd))
@@ -768,16 +774,18 @@ def varying_static_paths():
 def varying_snr():
     for snr in [-5,0,10,20,30]:
         for l in [0.0107,0.06]:
-            if l==0.0107:
-                vmax = 10
-            if l==0.06:
-                vmax=20
-            print('SNR: ' + str(snr) + ' dB')
-            print('wavelength: ' + str(l) + ' m')
-            ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l)
-            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='data/varying_snr/', save=True)
-            print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-            print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+            for a in [1,3,5]:
+                if l==0.0107:
+                    vmax = 10
+                if l==0.06:
+                    vmax=20
+                print('SNR: ' + str(snr) + ' dB')
+                print('wavelength: ' + str(l) + ' m')
+                print('AoA: ' + str(a) + '°')
+                ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=a)
+                fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa' + str(a) + '/', save=True)
+                print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+                print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
 
 def varying_interval():
     for interval in [2,4,8,16,32]:
@@ -793,7 +801,19 @@ def varying_interval():
 
 
 if __name__=='__main__':
+
+    # vmax = 20
+    # snr = 10
+    # l = 0.06
+
+    # ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=3)
+    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa3/', save=True)
+    # print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    
     varying_snr()
+    
+    
     # ch_sim = channel_sim(vmax=10, SNR=snr, AoAstd=np.deg2rad(5), l=0.0107, static_rx=False)
     # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)
     # print('average fd estimate relative error: ' + str(np.mean(fd_error)))

@@ -40,8 +40,8 @@ def load_data(path):
     return data
 
 
-path = 'data/varying_snr'
-subdir = ''#'/aoa5'
+path = 'cir_estimation_sim/data/varying_snr'
+subdir = '/aoa3'
 data = load_data(path+subdir)
 #labels = [25,50,100,200,400]
 labels = [-5,0,10,20,30]
@@ -53,5 +53,6 @@ for fc in fcs:
         for d in data:
             if d[path.split('_')[-1]]==s and d['freq']==fc:
                 errors.append(d['data'])
-
-    plot_boxplot('cir_estimation_sim/plot/',errors,'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'var_snrfc_%s' %(fc))
+                print('\nfc= ' + str(fc) + ' GHz, SNR= ' + str(s) + ' dB')
+                print(np.median(d['data']))
+    plot_boxplot('cir_estimation_sim/plot'+subdir+'/',errors,'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'var_snrfc_%s' %(fc))
