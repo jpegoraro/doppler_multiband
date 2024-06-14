@@ -1,0 +1,157 @@
+% This file was created with tikzplotlib v0.10.1.
+\begin{tikzpicture}
+
+\definecolor{black32}{RGB}{32,32,32}
+\definecolor{brown1444291}{RGB}{144,42,91}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darksalmon229162131}{RGB}{229,162,131}
+\definecolor{darkslategray703469}{RGB}{70,34,69}
+\definecolor{indianred2108383}{RGB}{210,83,83}
+
+\begin{axis}[
+tick align=outside,
+tick pos=left,
+title={varying npath AoA=5°, fc=60 GHz},
+x grid style={darkgray176},
+xlabel={No. of paths},
+xmin=-0.5, xmax=3.5,
+xtick style={color=black},
+xtick={0,1,2,3},
+xticklabels={2,4,6,8},
+y grid style={darkgray176},
+ylabel={fD relative error},
+ymajorgrids,
+ymin=-0.00137973796148545, ymax=0.0289747492719681,
+ytick style={color=black}
+]
+\path [draw=black32, fill=darkslategray703469, semithick]
+(axis cs:-0.4,0.00246145813550932)
+--(axis cs:0.4,0.00246145813550932)
+--(axis cs:0.4,0.0125195647105884)
+--(axis cs:-0.4,0.0125195647105884)
+--(axis cs:-0.4,0.00246145813550932)
+--cycle;
+\path [draw=black32, fill=brown1444291, semithick]
+(axis cs:0.6,0.00222817207202541)
+--(axis cs:1.4,0.00222817207202541)
+--(axis cs:1.4,0.0111544314291264)
+--(axis cs:0.6,0.0111544314291264)
+--(axis cs:0.6,0.00222817207202541)
+--cycle;
+\path [draw=black32, fill=indianred2108383, semithick]
+(axis cs:1.6,0.00214807944307498)
+--(axis cs:2.4,0.00214807944307498)
+--(axis cs:2.4,0.0114396062834768)
+--(axis cs:1.6,0.0114396062834768)
+--(axis cs:1.6,0.00214807944307498)
+--cycle;
+\path [draw=black32, fill=darksalmon229162131, semithick]
+(axis cs:2.6,0.00215357954700667)
+--(axis cs:3.4,0.00215357954700667)
+--(axis cs:3.4,0.0116901928756403)
+--(axis cs:2.6,0.0116901928756403)
+--(axis cs:2.6,0.00215357954700667)
+--cycle;
+\addplot [semithick, black32]
+table {%
+0 0.00246145813550932
+0 3.87655232896714e-08
+};
+\addplot [semithick, black32]
+table {%
+0 0.0125195647105884
+0 0.0275949998522657
+};
+\addplot [semithick, black32]
+table {%
+-0.2 3.87655232896714e-08
+0.2 3.87655232896714e-08
+};
+\addplot [semithick, black32]
+table {%
+-0.2 0.0275949998522657
+0.2 0.0275949998522657
+};
+\addplot [semithick, black32]
+table {%
+1 0.00222817207202541
+1 1.63244826476312e-07
+};
+\addplot [semithick, black32]
+table {%
+1 0.0111544314291264
+1 0.024530269707971
+};
+\addplot [semithick, black32]
+table {%
+0.8 1.63244826476312e-07
+1.2 1.63244826476312e-07
+};
+\addplot [semithick, black32]
+table {%
+0.8 0.024530269707971
+1.2 0.024530269707971
+};
+\addplot [semithick, black32]
+table {%
+2 0.00214807944307498
+2 6.23589782193934e-07
+};
+\addplot [semithick, black32]
+table {%
+2 0.0114396062834768
+2 0.025297048657678
+};
+\addplot [semithick, black32]
+table {%
+1.8 6.23589782193934e-07
+2.2 6.23589782193934e-07
+};
+\addplot [semithick, black32]
+table {%
+1.8 0.025297048657678
+2.2 0.025297048657678
+};
+\addplot [semithick, black32]
+table {%
+3 0.00215357954700667
+3 1.14582169879384e-08
+};
+\addplot [semithick, black32]
+table {%
+3 0.0116901928756403
+3 0.0259892989588043
+};
+\addplot [semithick, black32]
+table {%
+2.8 1.14582169879384e-08
+3.2 1.14582169879384e-08
+};
+\addplot [semithick, black32]
+table {%
+2.8 0.0259892989588043
+3.2 0.0259892989588043
+};
+\addplot [semithick, black32]
+table {%
+-0.4 0.00552141347344627
+0.4 0.00552141347344627
+};
+\addplot [semithick, black32]
+table {%
+0.6 0.00502092514754222
+1.4 0.00502092514754222
+};
+\addplot [semithick, black32]
+table {%
+1.6 0.00501591466402631
+2.4 0.00501591466402631
+};
+\addplot [semithick, black32]
+table {%
+2.6 0.00501810131691434
+3.4 0.00501810131691434
+};
+\end{axis}
+
+\end{tikzpicture}

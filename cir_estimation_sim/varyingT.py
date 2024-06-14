@@ -6,6 +6,8 @@ from scipy.signal import correlate, correlation_lags, deconvolve
 from scipy.optimize import least_squares
 import time
 import tikzplotlib as tik
+import pandas as pd
+import seaborn as sns
 #from tqdm import tqdm
 
 class channel_sim():
@@ -357,11 +359,13 @@ class channel_sim():
         return trn_field
         
         
-    def compute_cir(self, init, plot=False):
+    def compute_cir(self, init, T=0, plot=False):
         """
             Computes channel impulse response.
             init: if it is the first cir sample compute phases and attenuations.
         """
+        if T==0:
+            T = self.T
         if self.l==0.005:
             up_cir = np.zeros(256*self.us).astype(complex)
             cir = np.zeros(256).astype(complex)
@@ -374,8 +378,8 @@ class channel_sim():
         delays = np.floor(self.paths['delay']*self.B)
         for i,d in enumerate(delays.astype(int)):
             if self.l==0.005:
-                up_cir[d*self.us] = up_cir[d*self.us] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths['phase'][i])
-            cir[d] = cir[d] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * self.T * self.k * self.paths['phase'][i])
+                up_cir[d*self.us] = up_cir[d*self.us] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * T * self.k * self.paths['phase'][i])
+            cir[d] = cir[d] + self.paths['gain'][i] * np.exp(1j * 2 * np.pi * T * self.k * self.paths['phase'][i])
         assert np.count_nonzero(cir)==len(self.paths['delay']) # check that all paths are separable
         if plot:
             plt.title('upsampled cir')
@@ -462,13 +466,15 @@ class channel_sim():
         noise = self.gen_noise(len(Y))
         return Y + noise
 
-    def add_cfo(self, signal):
+    def add_cfo(self, signal, T=0):
         """
             Returns the signal after adding the channel frequency offset shift.
             signal: signal (cir estimate).
         """
+        if T==0:
+            T = self.T
         self.f_off = np.random.normal(0,self.std_w)
-        return signal * np.exp(1j*2*np.pi*self.f_off*self.k*self.T)       
+        return signal * np.exp(1j*2*np.pi*self.f_off*self.k*T)       
     
     def add_po(self, signal):
         """
@@ -578,14 +584,16 @@ class channel_sim():
             plt.show()
         return phases 
     
-    def solve_system(self, phases, zetas):
+    def solve_system(self, phases, zetas, T=0):
         """
             Solves the system for the received input parameters. 
             phases: measured phases,
             zetas: angle of arrivals.
 
             returns the unknowns of the system.
-        """       
+        """      
+        if T==0:
+            T=self.T 
         alpha = phases[2]*(np.cos(zetas[1])-1)-(phases[1]*(np.cos(zetas[2])-1))
         beta = phases[1]*np.sin(zetas[2])-(phases[2]*np.sin(zetas[1]))
         if abs(beta)<1e-5:
@@ -597,12 +605,12 @@ class channel_sim():
             eta = eta + np.pi
         if eta<0:
             eta = eta + (2*np.pi)
-        f_d = (phases[0]-((phases[1]*(np.cos(zetas[0]-eta)-np.cos(eta)))/(np.cos(zetas[1]-eta)-np.cos(eta))))/(2*np.pi*self.T)
+        f_d = (phases[0]-((phases[1]*(np.cos(zetas[0]-eta)-np.cos(eta)))/(np.cos(zetas[1]-eta)-np.cos(eta))))/(2*np.pi*T)
         
-        v = self.l/(2*np.pi*self.T)*phases[1]/(np.cos(zetas[1]-eta)-np.cos(eta))
+        v = self.l/(2*np.pi*T)*phases[1]/(np.cos(zetas[1]-eta)-np.cos(eta))
         return eta, f_d, v 
     
-    def system(self, x, phases, n_zetas):
+    def system(self, x, phases, n_zetas, T=0):
         """
             Defines the system to solve it using the non linear least-square method, for at least 4 measured phases (i.e. 2 static paths).
             x = [f_D, v, eta]: system unknowns,
@@ -611,12 +619,14 @@ class channel_sim():
 
             returns an array representing the system.
         """
+        if T==0:
+            T=self.T
         results = []
         #target path
-        results.append(phases[0]-(2*np.pi*self.T*(x[0]+(x[1]/self.l*(np.cos(n_zetas[0]-x[2])-np.cos(x[2]))))))
+        results.append(phases[0]-(2*np.pi*T*(x[0]+(x[1]/self.l*(np.cos(n_zetas[0]-x[2])-np.cos(x[2]))))))
         # loop for each static path, i.e., excluding LoS and Target
         for i in range(1,len(phases)):
-            results.append(phases[i]-(2*np.pi*self.T*(x[1]/self.l*(np.cos(n_zetas[i]-x[2])-np.cos(x[2])))))
+            results.append(phases[i]-(2*np.pi*T*(x[1]/self.l*(np.cos(n_zetas[i]-x[2])-np.cos(x[2])))))
         return np.array(results)
     
     def check_initial_values(self, x0):
@@ -638,24 +648,25 @@ class channel_sim():
         #print(data.shape)
         m = []
         s = []
-        for data in dataa:
-            mean = np.mean(data,1)
+        for i in range(3):
+            data = dataa[:,:,i]
+            mean = np.mean(data,0)
             m.append(mean)
-            s.append(np.std(data,1))
+            s.append(np.std(data,0))
             plt.plot(times, mean)
         plt.legend(legend)
         for mean,std in zip(m,s):    
-            low = mean-(std)
+            low = mean-(3*std)
             low[low<0] = 0
-            plt.fill_between(times, low, mean+std, alpha=0.3)
+            plt.fill_between(times, low, mean+(3*std), alpha=0.3)
         plt.grid()
         plt.xlabel('time (ms)')
         plt.ylabel('fD mean relative error')
         tik.save(path + '.tex')
         plt.savefig(path + '.png')
-        #plt.show()
+        plt.show()
     
-    def simulation(self, x_max, y_max, N, interval, path, relative=True, save=True, save_time=False, save_all=False):
+    def simulation(self, x_max, y_max, N, interval, relative=True):
         """
             Performs the simulation.
             x_max: max x Cartesian coordinate,
@@ -669,36 +680,18 @@ class channel_sim():
             returns target Doppler frequency estimate relative error.
         """
         f_d_error = []
-        nls_time = []
-        eta_abs_error = []
-        eta_rel_error = []
-        v_abs_error = []
-        v_rel_error = []
         npath_error = []
         
         #for j in tqdm(range(N),dynamic_ncols=True):
         for j in range(N):
             print("iteration: ", j, end="\r")
-            phase_diff = []
             self.k = 0
             self.get_positions(x_max,y_max,plot=False)
-            self.compute_cir(init=True,plot=False)
-            if self.l==0.005:
-                up_rx_signal = self.get_rxsignal(plot=False)
-                self.sampling(up_rx_signal,plot=False)
-                h = self.estimate_CIR(self.rx_signal,plot=False)
-            else:
-                Y = self.get_rx_ofdm(self.tx_signal)
-                h = self.estimate_ofdm_CIR(Y, plot=False)
-            ### add cfo ###
-            h = self.add_po(self.add_cfo(h))
-            self.get_phases(h)
-            for p in range(1,len(self.phases[:,1])):
-                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-            AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
-            for i in range(1,interval):
-                self.k = i
-                self.compute_cir(init=False)
+            fd_err = []
+            for t in np.arange(0.18,0.72,0.02):
+                t = t*1e-3
+                phase_diff = []
+                self.compute_cir(init=True,T=t,plot=False)
                 if self.l==0.005:
                     up_rx_signal = self.get_rxsignal(plot=False)
                     self.sampling(up_rx_signal,plot=False)
@@ -707,214 +700,101 @@ class channel_sim():
                     Y = self.get_rx_ofdm(self.tx_signal)
                     h = self.estimate_ofdm_CIR(Y, plot=False)
                 ### add cfo ###
-                h = self.add_po(self.add_cfo(h))
-                self.get_phases(h,plot=False)
-                ### remove LoS from other paths ###
+                h = self.add_po(self.add_cfo(h,T=t))
+                self.get_phases(h)
                 for p in range(1,len(self.phases[:,1])):
-                   self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-                ### phase difference ###
-                diff = self.phases[:,1] - self.phases[:,0]
-                phase_diff.append(diff)
-                ### collect noisy AoA measurements ###
-                AoA.append(self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1))
-            ### time average ###
-            AoA = np.mean(np.stack(AoA,axis=0),axis=0)
-            phase_diff = np.stack(phase_diff, axis=0)
-            phase_diff = self.my_mod_2pi(phase_diff)
-            phase_diff = np.mean(phase_diff, axis=0) 
-            phase_diff = phase_diff[1:]
-            ### check phase diff < pi ###
-            for i,p in enumerate(phase_diff):
-                if p>np.pi:
-                    phase_diff[i] = p - 2*np.pi
-            
-            if self.v_rx==0:
-                eta = 0
-                f_d = phase_diff[0]/(2*np.pi*self.T)
-                v = 0
-                x0 = [f_d, v, eta]
-            else:
-                eta, f_d, v = self.solve_system(phase_diff,AoA)
-                x0 = [f_d, v, eta]
-                x0 = self.check_initial_values(x0)
-            
-            #if len(self.phases)<7:
-            #results = least_squares(self.system, x0, args=(phase_diff, AoA), bounds=([-self.fd_max,0,0],[self.fd_max,self.vmax,2*np.pi]))
-            #else:
-            npath_err = []
-            nls_t = []
-            if self.n_static==8:
-                for j in [2,4,6,8]:
-                    start = time.time()
-                    results = least_squares(self.system, x0, args=(phase_diff[:j+2], AoA[:j+2]))    
-                    nls_t.append(time.time()-start) 
-                    npath_err.append(abs((self.fd-np.mean(results.x[0]))/self.fd))   
-                nls_time.append(nls_t)
-            else:
-                start = time.time()
-                results = least_squares(self.system, x0, args=(phase_diff, AoA))
-                nls_time.append(time.time()-start)
-
-            if relative:
-                err = abs((self.fd-np.mean(results.x[0]))/self.fd)
-                #print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err), end="\r")
-                if err>10:
-                    dc=1
-                #    print('simulation %s/%s :\nfd estimate relative error: %s' %(j,N,err))
-                #    print('AoAs:\n%s \nAoA condition 2:\n%s' %(self.paths['AoA'][1:],self.paths['AoA'][1:]-self.eta))
-                #    print('fd='+str(self.fd))
-                if npath_err:
-                    npath_error.append(npath_err)
-                f_d_error.append(err)
-            else:
-                f_d_error.append(abs(self.fd-np.mean(results.x[0])))
-            if save_all:
-                eta_abs_error.append(abs(np.rad2deg(self.eta)-np.rad2deg(np.mean(results.x[2]))))
-                eta_rel_error.append(abs((self.eta-np.mean(results.x[2]))/self.eta))
-                v_abs_error.append(abs(self.v_rx-np.mean(results.x[1])))
-                v_rel_error.append(abs((self.v_rx-np.mean(results.x[1]))/self.v_rx))
-        if save:
-                if self.l==0.005:
-                    np.save(path+'fd_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
-                    if save_all:
-                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc60_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
-                    if save_time:
-                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
-                elif self.l==0.0107:
-                    np.save(path+'fd_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
-                    if save_all:
-                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc28_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
-                    if save_time:
-                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
+                        self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+                AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
+                for i in range(1,interval):
+                    self.k = i
+                    self.compute_cir(init=False,T=t)
+                    if self.l==0.005:
+                        up_rx_signal = self.get_rxsignal(plot=False)
+                        self.sampling(up_rx_signal,plot=False)
+                        h = self.estimate_CIR(self.rx_signal,plot=False)
+                    else:
+                        Y = self.get_rx_ofdm(self.tx_signal)
+                        h = self.estimate_ofdm_CIR(Y, plot=False)
+                    ### add cfo ###
+                    h = self.add_po(self.add_cfo(h,T=t))
+                    self.get_phases(h,plot=False)
+                    ### remove LoS from other paths ###
+                    for p in range(1,len(self.phases[:,1])):
+                        self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+                    ### phase difference ###
+                    diff = self.phases[:,1] - self.phases[:,0]
+                    phase_diff.append(diff)
+                    ### collect noisy AoA measurements ###
+                    AoA.append(self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1))
+                ### time average ###
+                AoA = np.mean(np.stack(AoA,axis=0),axis=0)
+                phase_diff = np.stack(phase_diff, axis=0)
+                phase_diff = self.my_mod_2pi(phase_diff)
+                phase_diff = np.mean(phase_diff, axis=0) 
+                phase_diff = phase_diff[1:]
+                ### check phase diff < pi ###
+                for i,p in enumerate(phase_diff):
+                    if p>np.pi:
+                        phase_diff[i] = p - 2*np.pi
+                
+                if self.v_rx==0:
+                    eta = 0
+                    f_d = phase_diff[0]/(2*np.pi*self.T)
+                    v = 0
+                    x0 = [f_d, v, eta]
                 else:
-                    np.save(path+'fd_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',f_d_error)
-                    if save_all:
-                        np.save(path+'eta/eta_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_abs_error)
-                        np.save(path+'eta/eta_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',eta_rel_error)
-                        np.save(path+'speed/v_abs_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_abs_error)
-                        np.save(path+'speed/v_rel_k'+str(interval)+'_fc5_ns'+str(self.n_static)+'_snr'+str(self.SNR)+'.npy',v_rel_error)
-                    if save_time:
-                        np.save(path+'time/nlsTime_fc5_ns'+str(self.n_static)+'.npy',nls_time)
-        if npath_error:
-            if nls_time:
-                return npath_error, nls_time
-            else:
-                npath_error
-        return f_d_error
+                    eta, f_d, v = self.solve_system(phase_diff,AoA,T=t)
+                    x0 = [f_d, v, eta]
+                    x0 = self.check_initial_values(x0)
+                
+                #if len(self.phases)<7:
+                #results = least_squares(self.system, x0, args=(phase_diff, AoA), bounds=([-self.fd_max,0,0],[self.fd_max,self.vmax,2*np.pi]))
+                #else:
     
+                npath_err = []
+                if self.n_static==6:
+                    for j in [2,4,6]:
+                        results = least_squares(self.system, x0, args=(phase_diff[:j+2], AoA[:j+2]))    
+                        npath_err.append(abs((self.fd-np.mean(results.x[0]))/self.fd))   
+                else:
+                    results = least_squares(self.system, x0, args=(phase_diff, AoA))
 
-def varying_static_paths():
-    interval = 16 # interval expressed in [ms]
-    for n_static in [8]:
-        for l in [0.0107,0.06]:
-            print('number of static paths: ' + str(n_static))
-            print('wavelength: ' + str(l) + ' m')
-            if l==0.0107:
-                vmax = 10
-                s = 50
-            if l==0.06:
-                vmax = 20
-                s = 100
-            if l==0.005:
-                vmax = 5
-                s = 20
-            ch_sim = channel_sim(vmax=vmax, SNR=5, l=l, n_static=n_static)
-            i = int(interval*1e-3/ch_sim.T)
-            npath_error, nls_time = ch_sim.simulation(x_max=s, y_max=s, N=100000, interval=i, path='data/varying_n/', save=False)
-            np.save('cir_estimation_sim/data/varying_npath/last_tot_5_fd_error_fc%s.npy'%(int(3e8/l*1e-9)),npath_error) 
-            np.save('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc%s.npy'%(int(3e8/l*1e-9)),nls_time)
-            print('average fd estimate relative error: ' + str(np.mean(npath_error, axis=0))+'\n')
-            print('median fd estimate relative error: ' + str(np.median(npath_error,axis=0))+'\n')
-
-def varying_snr():
-    for snr in [-5,0,10,20,30]:
-        for l in [0.0107,0.06]:
-            for a in [1,3,5]:
-                if l==0.0107:
-                    vmax = 10
-                if l==0.06:
-                    vmax=20
-                print('SNR: ' + str(snr) + ' dB')
-                print('wavelength: ' + str(l) + ' m')
-                print('AoA: ' + str(a) + '°')
-                ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=a)
-                fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa' + str(a) + '/', save=True)
-                print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-                print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-
-def varying_interval():
-    for interval in [2,4,8,16,32]:
-        for l in [0.005,0.0107]:
-            print('interval: ' + str(interval) + ' ms')
-            print('wavelength: ' + str(l) + ' m')
-            ch_sim = channel_sim(SNR=20, AoAstd=0, l=l)
-            i = int(interval*1e-3/ch_sim.T)
-            fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10, interval=i, path='data/varying_interval/', save=False)
-            print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-            print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-
-def varying_T():
-    for f in [28]:
-        print('carrier frequency: ' + str(f) + ' GHz')
-        tot_f_d_error =[]
-        for ns in [2,4,6]:
-            print('ns= ' + str(ns))
-            path = 'cir_estimation_sim/plot/T/'
-            f_d_error = []
-            times = np.arange(0.18,0.72,0.02)
-            for t in times:
-                t  = round(t,2)
-                print('period= ' + str(t) + ' ms')
-                if f==60:
-                    ### fc = 60 GHz ###
-                    ch_sim = channel_sim(vmax=5, SNR=10, l=0.005, n_static=ns, T=t)
-                if f==28:
-                    ### fc = 28 GHz ### 
-                    ch_sim = channel_sim(vmax=10, SNR=20, l=0.0107, AoAstd=0, n_static=ns, T=t)
-                error = ch_sim.simulation(x_max=20,y_max=20,path=path+'fc_'+str(f)+'/'+str(ns)+'_static/',save=False,N=10000,interval=200)
-                f_d_error.append(error)
-                print('average fD relative error: ' + str(np.mean(error)) + ' std: ' + str(np.std(error)))
-            #p = path+'fc_'+str(f)+'/varying_t'
-            tot_f_d_error.append(np.squeeze(np.stack(f_d_error)))
-        np.save(path+'fc_'+str(f)+'_'+str(ns)+'_static_snr0_f_d_error_nb.npy',tot_f_d_error)
-        legend = ['2 static paths', '4 static paths', '6 static paths']
-        ch_sim.plot_mae(tot_f_d_error,path,legend,times)
-
+                if relative:
+                    if npath_err:
+                        fd_err.append(npath_err)
+                    else:
+                        err = abs((self.fd-np.mean(results.x[0]))/self.fd)
+                        fd_err.append(err)
+                else:
+                    fd_err.append(abs(self.fd-np.mean(results.x[0])))
+            f_d_error.append(fd_err)
+        return f_d_error
 
 if __name__=='__main__':
 
-    # vmax = 20
-    # snr = 10
-    # l = 0.06
-
-    # ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=3)
-    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa3/', save=True)
-    # print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    interval = 16 # interval expressed in [ms]
+    ns = 6
+    ch_sim = channel_sim(vmax=10, SNR=20, l=0.0107, n_static=ns)
+    i = int(interval*1e-3/ch_sim.T)
+    # npath_error = ch_sim.simulation(x_max=50,y_max=50,N=10000,interval=i)
+    # npath_error = np.stack(npath_error,axis=0)    
+    # for i in range(3):
+    #     print('average fd estimate relative error ns=%s : '%((i+1)*2) + str(np.mean(npath_error[:,:,i], axis=0))+'\n')
+    #     print('median fd estimate relative error ns=%s : '%((i+1)*2) + str(np.median(npath_error[:,:,i],axis=0))+'\n')
     
-    #varying_static_paths()
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc5.npy')
-    print('average computational times per No. static paths, fc = 5 ' + str(np.mean(times,0)))
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc28.npy')
-    print('average computational times per No. static paths, fc = 28 ' + str(np.mean(times,0)))
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc60.npy')
-    print('average computational times per No. static paths, fc = 60 ' + str(np.mean(times,0)))
-    
-    # ch_sim = channel_sim(vmax=10, SNR=snr, AoAstd=np.deg2rad(5), l=0.0107, static_rx=False)
-    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)
-    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    # ch_sim = channel_sim(vmax=20, SNR=snr, AoAstd=np.deg2rad(5), l=0.06, static_rx=False)
-    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)
-    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
-    # ch_sim = channel_sim(vmax=5, SNR=20, AoAstd=np.deg2rad(5), l=0.005, static_rx=True)
-    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=100, interval=100, path='', save=False)
-    # print('average fd estimate relative error: ' + str(np.mean(fd_error)))
-    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    # np.save('cir_estimation_sim/data/varying_T/tot_fd_error_fc28.npy', npath_error)
+    npath_error = np.load('cir_estimation_sim/data/varying_T/tot_fd_error_fc28.npy')
+    legend = ['2 static paths', '4 static paths', '6 static paths']
+    times = np.round(np.arange(0.18,0.72,0.02),2)
+    #ch_sim.plot_mae(npath_error,'cir_estimation_sim/plot/T/',legend,times)
+    errors = np.reshape(npath_error, -1, order='F')
+    times = np.repeat(times,npath_error.shape[0])
+    times = np.tile(times,npath_error.shape[2])
+    npaths = np.repeat([2,4,6],npath_error.shape[0]*npath_error.shape[1])
+    data = np.array([times,errors,npaths]).swapaxes(0,1)
+    df = pd.DataFrame(data=data, columns=['time','error','npaths'])
+    exercise = sns.load_dataset("exercise")
+    a=0
+    sns.catplot(data=df, x='time', y='error', hue='npaths', kind='point', errorbar='sd', capsize=.2)
+    tik.save('cir_estimation_sim/plot/T/test.tex')
+    plt.show()

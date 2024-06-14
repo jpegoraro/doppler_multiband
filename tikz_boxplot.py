@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('cir_estimation_sim/plot/var_intervalfc_28.tex','cir_estimation_sim/plot/var_interval.tex',5)
+tikz_boxplot('cir_estimation_sim/plot/var_npathfc_5.tex','cir_estimation_sim/plot/var_npath.tex',4)

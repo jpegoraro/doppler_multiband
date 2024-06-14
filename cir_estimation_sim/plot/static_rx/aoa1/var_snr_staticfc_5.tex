@@ -1,0 +1,190 @@
+% This file was created with tikzplotlib v0.10.1.
+\begin{tikzpicture}
+
+\definecolor{black28}{RGB}{28,28,28}
+\definecolor{brown1814888}{RGB}{181,48,88}
+\definecolor{burlywood231175145}{RGB}{231,175,145}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkslategray583162}{RGB}{58,31,62}
+\definecolor{indianred21811088}{RGB}{218,110,88}
+\definecolor{purple1194288}{RGB}{119,42,88}
+
+\begin{axis}[
+tick align=outside,
+tick pos=left,
+title={varying snr AoA=5°, fc=5 GHz},
+x grid style={darkgray176},
+xlabel={SNR [dB]},
+xmin=-0.5, xmax=4.5,
+xtick style={color=black},
+xtick={0,1,2,3,4},
+xticklabels={-5,0,10,20,30},
+y grid style={darkgray176},
+ylabel={fD relative error},
+ymajorgrids,
+ymin=-0.035497503042096, ymax=0.745447693906426,
+ytick style={color=black}
+]
+\path [draw=black28, fill=darkslategray583162, semithick]
+(axis cs:-0.4,0.0967461484337495)
+--(axis cs:0.4,0.0967461484337495)
+--(axis cs:0.4,0.342458665283508)
+--(axis cs:-0.4,0.342458665283508)
+--(axis cs:-0.4,0.0967461484337495)
+--cycle;
+\path [draw=black28, fill=purple1194288, semithick]
+(axis cs:0.6,0.00198790998243105)
+--(axis cs:1.4,0.00198790998243105)
+--(axis cs:1.4,0.0246788062996599)
+--(axis cs:0.6,0.0246788062996599)
+--(axis cs:0.6,0.00198790998243105)
+--cycle;
+\path [draw=black28, fill=brown1814888, semithick]
+(axis cs:1.6,0.00137302864175893)
+--(axis cs:2.4,0.00137302864175893)
+--(axis cs:2.4,0.00549977868383012)
+--(axis cs:1.6,0.00549977868383012)
+--(axis cs:1.6,0.00137302864175893)
+--cycle;
+\path [draw=black28, fill=indianred21811088, semithick]
+(axis cs:2.6,0.000302349659394844)
+--(axis cs:3.4,0.000302349659394844)
+--(axis cs:3.4,0.00127121165487973)
+--(axis cs:2.6,0.00127121165487973)
+--(axis cs:2.6,0.000302349659394844)
+--cycle;
+\path [draw=black28, fill=burlywood231175145, semithick]
+(axis cs:3.6,0.000357815152765328)
+--(axis cs:4.4,0.000357815152765328)
+--(axis cs:4.4,0.00165594050123708)
+--(axis cs:3.6,0.00165594050123708)
+--(axis cs:3.6,0.000357815152765328)
+--cycle;
+\addplot [semithick, black28]
+table {%
+0 0.0967461484337495
+0 2.20848828849698e-05
+};
+\addplot [semithick, black28]
+table {%
+0 0.342458665283508
+0 0.70995018495422
+};
+\addplot [semithick, black28]
+table {%
+-0.2 2.20848828849698e-05
+0.2 2.20848828849698e-05
+};
+\addplot [semithick, black28]
+table {%
+-0.2 0.70995018495422
+0.2 0.70995018495422
+};
+\addplot [semithick, black28]
+table {%
+1 0.00198790998243105
+1 1.27156926012708e-06
+};
+\addplot [semithick, black28]
+table {%
+1 0.0246788062996599
+1 0.0585764376892445
+};
+\addplot [semithick, black28]
+table {%
+0.8 1.27156926012708e-06
+1.2 1.27156926012708e-06
+};
+\addplot [semithick, black28]
+table {%
+0.8 0.0585764376892445
+1.2 0.0585764376892445
+};
+\addplot [semithick, black28]
+table {%
+2 0.00137302864175893
+2 1.04226306305149e-07
+};
+\addplot [semithick, black28]
+table {%
+2 0.00549977868383012
+2 0.0116896752967589
+};
+\addplot [semithick, black28]
+table {%
+1.8 1.04226306305149e-07
+2.2 1.04226306305149e-07
+};
+\addplot [semithick, black28]
+table {%
+1.8 0.0116896752967589
+2.2 0.0116896752967589
+};
+\addplot [semithick, black28]
+table {%
+3 0.000302349659394844
+3 6.40636300926454e-09
+};
+\addplot [semithick, black28]
+table {%
+3 0.00127121165487973
+3 0.0027243072272568
+};
+\addplot [semithick, black28]
+table {%
+2.8 6.40636300926454e-09
+3.2 6.40636300926454e-09
+};
+\addplot [semithick, black28]
+table {%
+2.8 0.0027243072272568
+3.2 0.0027243072272568
+};
+\addplot [semithick, black28]
+table {%
+4 0.000357815152765328
+4 5.91010951377552e-09
+};
+\addplot [semithick, black28]
+table {%
+4 0.00165594050123708
+4 0.00360270788091155
+};
+\addplot [semithick, black28]
+table {%
+3.8 5.91010951377552e-09
+4.2 5.91010951377552e-09
+};
+\addplot [semithick, black28]
+table {%
+3.8 0.00360270788091155
+4.2 0.00360270788091155
+};
+\addplot [semithick, black28]
+table {%
+-0.4 0.197294368307131
+0.4 0.197294368307131
+};
+\addplot [semithick, black28]
+table {%
+0.6 0.00483835037065842
+1.4 0.00483835037065842
+};
+\addplot [semithick, black28]
+table {%
+1.6 0.00298264090570347
+2.4 0.00298264090570347
+};
+\addplot [semithick, black28]
+table {%
+2.6 0.000668305845756267
+3.4 0.000668305845756267
+};
+\addplot [semithick, black28]
+table {%
+3.6 0.000821594006373496
+4.4 0.000821594006373496
+};
+\end{axis}
+
+\end{tikzpicture}
