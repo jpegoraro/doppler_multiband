@@ -59,8 +59,8 @@ class channel_sim():
         # select OFDM with 16QAM modulation for 28 GHz carrier frequency
         if l==0.0107:
             # 5G-NR parameters
-            self.delta_f = 120e3 # subcarrier spacing [Hz]
-            self.n_sc = 3332 # number of subcarriers
+            self.delta_f = 240e3 # subcarrier spacing [Hz]
+            self.n_sc = 1666 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
             self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
@@ -684,24 +684,11 @@ class channel_sim():
             eta_rel_error = []
             v_abs_error = []
             v_rel_error = []
-            phase_diff = []
-            self.compute_cir(init=True,plot=False)
-            if self.l==0.005:
-                up_rx_signal = self.get_rxsignal(plot=False)
-                self.sampling(up_rx_signal,plot=False)
-                h = self.estimate_CIR(self.rx_signal,plot=False)
-            else:
-                Y = self.get_rx_ofdm(self.tx_signal)
-                h = self.estimate_ofdm_CIR(Y, plot=False)
-            ### add cfo ###
-            h = self.add_po(self.add_cfo(h))
-            self.get_phases(h)
-            for p in range(1,len(self.phases[:,1])):
-                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-            AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
-            for i in range(1,interval):
-                self.k = i
-                self.compute_cir(init=False)
+            for snr in [5,30]:
+                phase_diff = []
+                self.k = 0
+                self.SNR = snr
+                self.compute_cir(init=True,plot=False)
                 if self.l==0.005:
                     up_rx_signal = self.get_rxsignal(plot=False)
                     self.sampling(up_rx_signal,plot=False)
@@ -711,32 +698,47 @@ class channel_sim():
                     h = self.estimate_ofdm_CIR(Y, plot=False)
                 ### add cfo ###
                 h = self.add_po(self.add_cfo(h))
-                self.get_phases(h,plot=False)
-                ### remove LoS from other paths ###
+                self.phases = np.zeros((self.n_static+2,2))
+                self.get_phases(h)
                 for p in range(1,len(self.phases[:,1])):
-                    self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
-                ### phase difference ###
-                diff = self.phases[:,1] - self.phases[:,0]
-                phase_diff.append(diff)
-                ### collect noisy AoA measurements ###
-                AoA.append(self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1))
+                        self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+                AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
 
-            assert round(interval*self.T*1e3)>46 and round(interval*self.T*1e3)<50
-            phase_diff = np.stack(phase_diff, axis=0)
-            phase_diff = self.my_mod_2pi(phase_diff)
-            AoA = np.stack(AoA,axis=0)
-            for inter in [48,32,16,8,4,2]:
-                inter = int(inter*1e-3/self.T)
-                AoA = AoA[:inter]
-                phase_diff = phase_diff[:inter]
+                for i in range(1,interval):
+                    self.k = i
+                    self.compute_cir(init=False)
+                    if self.l==0.005:
+                        up_rx_signal = self.get_rxsignal(plot=False)
+                        self.sampling(up_rx_signal,plot=False)
+                        h = self.estimate_CIR(self.rx_signal,plot=False)
+                    else:
+                        Y = self.get_rx_ofdm(self.tx_signal)
+                        h = self.estimate_ofdm_CIR(Y, plot=False)
+                    ### add cfo ###
+                    h = self.add_po(self.add_cfo(h))
+                    self.get_phases(h,plot=False)
+                    ### remove LoS from other paths ###
+                    for p in range(1,len(self.phases[:,1])):
+                        self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
+                    ### phase difference ###
+                    diff = self.phases[:,1] - self.phases[:,0]
+                    phase_diff.append(diff)
+                    ### collect noisy AoA measurements ###
+                    AoA.append(self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1))
+
+                
+                phase_diff = np.stack(phase_diff, axis=0)
+                phase_diff = self.my_mod_2pi(phase_diff)
+                AoA = np.stack(AoA,axis=0)
+                
                 ### time average ###
                 mean_AoA = np.mean(AoA,axis=0)
                 mean_phase_diff = np.mean(phase_diff, axis=0) 
                 mean_phase_diff = mean_phase_diff[1:]
                 ### check phase diff < pi ###
-                for i,p in enumerate(mean_phase_diff):
+                for ind,p in enumerate(mean_phase_diff):
                     if p>np.pi:
-                        mean_phase_diff[i] = p - 2*np.pi
+                        mean_phase_diff[ind] = p - 2*np.pi
                 
                 if self.v_rx==0:
                     eta = 0
@@ -763,6 +765,8 @@ class channel_sim():
                     eta_rel_error.append(abs((self.eta-np.mean(results.x[2]))/self.eta))
                     v_abs_error.append(abs(self.v_rx-np.mean(results.x[1])))
                     v_rel_error.append(abs((self.v_rx-np.mean(results.x[1]))/self.v_rx))
+
+
             f_d_error.append(inter_error)
             tot_eta_abs_error.append(eta_abs_error)
             tot_eta_rel_error.append(eta_rel_error)
@@ -793,8 +797,8 @@ class channel_sim():
         return f_d_error
     
 if __name__=='__main__':
-    interval = 48 # [ms]
-    for fc in [28]:
+    interval = 16 # [ms]
+    for fc in [5,28]:
         if fc==28:
             vmax = 10
             l = 0.0107
@@ -807,9 +811,9 @@ if __name__=='__main__':
             vmax = 5
             l = 0.005
             s = 20       
-        ch_sim = channel_sim(vmax=vmax, SNR=5, l=l)
+        ch_sim = channel_sim(vmax=vmax, SNR=None, l=l)
         i = int(interval*1e-3/ch_sim.T)
-        inter_error = ch_sim.simulation(x_max=s,y_max=s,N=10000,interval=i,path='cir_estimation_sim/data/varying_interval/',save=True)
+        inter_error = ch_sim.simulation(x_max=s,y_max=s,N=1000,interval=i,path='cir_estimation_sim/data/varying_interval/',save=False)
         inter_error = np.stack(inter_error,axis=0)
 
         print('average fd estimate relative error, with fc= ' + str(fc) + str(np.mean(inter_error, axis=0))+'\n')

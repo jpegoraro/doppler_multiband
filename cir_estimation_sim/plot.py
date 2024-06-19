@@ -15,7 +15,7 @@ def plot_boxplot(path, errors, xlabel, ylabel, xticks, title, name=''):
     ax = sns.boxplot(data=errors, orient='v', palette='rocket', showfliers=False)
     plt.xticks(np.arange(len(xticks)), xticks)
     plt.title(title)
-    #plt.ylim(top=0.25)
+    #plt.ylim(top=60,bottom=0)
     plt.savefig(path+name+'.png')
     tik.save(path+name+'.tex')
     plt.show()
@@ -87,37 +87,49 @@ def plot_fd():
         plot_boxplot('cir_estimation_sim/plot'+subdir+'/',errors,'No. of paths','fD relative error',np.array(labels),'varying npath AoA=5°, fc=%s GHz' %(fc),'var_npathfc_%s' %(fc))
 
 def plot_speed():
-    path = 'cir_estimation_sim/data/varying_snr'
-    subdir = '/aoa1'
-    data = load_data(path+subdir+'/eta',speed=True)
+    path = 'cir_estimation_sim/data/varying_snr/speed'
     #labels = [25,50,100,200,400]
-    labels = [-5,0,10,20,30]
+    labels = [-5,0,5,10,20]
+    #labels = [2,4,6,8,10]
+    fcs = [60]
+    for fc in fcs:
+        if fc==28:
+            data = np.load(path+'/v_abs_k89_fc28_ns2.npy')
+        if fc==5:
+            data = np.load(path+'/v_abs_k32_fc5_ns2.npy')
+        if fc==60:
+            data = np.load(path+'/v_abs_k96_fc60_ns2.npy')
+        print('\nfc= ' + str(fc))
+        aoa=[5]
+        for i in range(1): 
+            print('\n\naverage speed estimate absolute error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
+            print('median speed estimate absolute error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
+            plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','speed absolute error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snr_speed_fc_%sa_%s' %(fc,aoa[i]))
+
+def plot_eta():
+    path = 'cir_estimation_sim/data/varying_snr/eta'
+    #labels = [25,50,100,200,400]
+    labels = [-5,0,5,10,20]
     #labels = [2,4,6,8,10]
     fcs = [28,5]
     for fc in fcs:
-        errors_abs = []
-        errors_rel = []
-        for s in labels:
-            for i in range(len(data[0])):
-                d_abs = data[0][i]
-                d_rel = data[1][i]
-                if d_abs[path.split('_')[-1]]==s and d_abs['freq']==fc:
-                    errors_abs.append(d_abs['data'])
-                    print('\nfc= ' + str(fc) + ' GHz, SNR= ' + str(s) + ' dB')
-                    print('absolute median error: '+str(np.median(d_abs['data'])))
-                if d_rel[path.split('_')[-1]]==s and d_rel['freq']==fc:
-                    errors_rel.append(d_rel['data'])
-                    # print('\nfc= ' + str(fc) + ' GHz, SNR= ' + str(s) + ' dB')
-                    # print('relative median error: '+str(np.median(d_rel['data'])))
-        #plot_boxplot('cir_estimation_sim/plot'+subdir+'/',errors_rel,'SNR [dB]','speed relative error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'speed_rel_var_snrfc_%s' %(fc))
-        #plot_boxplot('cir_estimation_sim/plot'+subdir+'/',errors_abs,'SNR [dB]','speed absolute error',np.array(labels),'varying snr AoA=5°, fc=%s GHz' %(fc),'speed_abs_var_snrfc_%s' %(fc))
+        if fc==28:
+            data = np.load(path+'/eta_rel_k89_fc28_ns2.npy')
+        if fc==5:
+            data = np.load(path+'/eta_rel_k32_fc5_ns2.npy')
+        print('\nfc= ' + str(fc))
+        aoa=[5]
+        for i in range(1): 
+            print('\n\naverage eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
+            print('median eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
+            plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','eta relative error [°]',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'rel_var_snr_eta_fc_%sa_%s' %(fc,aoa[i]))
 
 def plot_npath():
     path = 'cir_estimation_sim/data/varying_npath'
     labels = [2,4,6,8]
     fcs = [5,28,60]
     for fc in fcs:
-        data = np.load(path+'/last_tot_5_fd_error_fc%s.npy'%(fc))
+        data = np.load(path+'/tot_5_fd_error_fc%s.npy'%(fc))
         print('\nfc= ' + str(fc))
         print(np.median(data))
         plot_boxplot('cir_estimation_sim/plot/',data,'No. of paths','fD relative error',np.array(labels),'varying npath AoA=5°, fc=%s GHz' %(fc),'var_npathfc_%s' %(fc))
@@ -125,7 +137,7 @@ def plot_npath():
 def plot_interval():
     path = 'cir_estimation_sim/data/varying_interval'
     labels = [48,32,16,8,4,2]
-    fcs = [60]
+    fcs = [28]
     for fc in fcs:
         data = np.load(path+'/fd_snr5_fc%s_ns2.npy'%(fc))
         print('\nfc= ' + str(fc))
@@ -145,4 +157,4 @@ def plot_snr():
             print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
             plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snrfc_%sa_%s' %(fc,aoa[i]))
 
-plot_snr()
+plot_interval()

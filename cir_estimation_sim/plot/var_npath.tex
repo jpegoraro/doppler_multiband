@@ -6,167 +6,237 @@
 \definecolor{darkslategray583162}{RGB}{58,31,62}
 \definecolor{indianred21811088}{RGB}{218,110,88}
 \definecolor{purple1194288}{RGB}{119,42,88}
+\matrix[draw, fill=white, ampersand replacement=\&, 
+inner sep=2pt, 
+    ] at (1.85,2.23) {  
+        \node [shape=rectangle, draw=black ,fill=purple1194288, label=right:\scriptsize{$f_{\rm c}=\SI{60}{\giga\hertz}$}] {};\&
+        \node [shape=rectangle, draw=black ,fill=brown1814888, label=right:\scriptsize{$f_{\rm c}=\SI{28}{\giga\hertz}$}] {}; \&
+        \node [shape=rectangle, draw=black ,fill=indianred21811088, label=right:\scriptsize{$f_{\rm c}=\SI{5}{\giga\hertz}$}] {};\\
+    };
   \begin{axis}
     [
     boxplot/draw direction=y,
-    ylabel={$\mathcal{E}_{f_D}$},
-    xlabel={SNR, $\Lambda$ [dB]},
-    ymin=-0.011, ymax=0.7,
-    ytick distance =0.1,
+    ylabel={Error $\varepsilon_{f_{\rm D, t}}$},
+    xlabel={No. static paths $S$},
+    xlabel shift=0 pt,
+    ymin=-0.011, ymax=0.25,
+    ytick={0,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5},
+    yticklabels={$0$,,$0.1$,,$0.2$,,$0.3$,,$0.4$,,$0.5$},
     yticklabel style = {/pgf/number format/fixed},
     cycle list={{purple1194288},{brown1814888},{indianred21811088}},
     xtick={1,2,3,4},
     ymajorgrids,
-    xticklabels={$0$, $5$, $10$, $15$},
+    xticklabels={$2$, $4$, $6$, $8$},
     %legend style={at={(0.97,0.97)}, anchor=north east, legend cell align=left, align=left, draw=white!15!black},
-    xlabel style={font=\normalsize}, ylabel style={font=\normalsize}, ticklabel style={font=\normalsize},
+    xlabel style={font=\footnotesize}, ylabel style={font=\footnotesize}, ticklabel style={font=\footnotesize},
     /pgfplots/boxplot/box extend=0.25,
     height=3.5cm,
-    width=6cm,
+    width=5.5cm,
+    xmin=0.25,
+    xmax=4.75
     % clip=false
     ]
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.00552141347344627,
-	upper quartile=0.0125195647105884,
-	lower quartile=0.00246145813550932,
-	upper whisker=0.0275949998522657,
-	lower whisker=3.87655232896714e-08,
-	draw position=0.7
-},
-] coordinates {};
+    \addplot+[
+	fill, draw=black,
+	boxplot prepared={
+		median=0.00824423041949608,
+		upper quartile=0.0214301886080531,
+		lower quartile=0.00353805805476005,
+		upper whisker=0.0482624271320269,
+		lower whisker=1.18492706304886e-06,
+		draw position=0.7
+	},
+	] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0295026616291903,
+    	upper quartile=0.0585579350418197,
+    	lower quartile=0.0134615501878936,
+    	upper whisker=0.126038588667084,
+    	lower whisker=4.32328634982817e-06,
+    	draw position=1
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.024192196108094,
+    	upper quartile=0.0431635333689394,
+    	lower quartile=0.0111862587323256,
+    	upper whisker=0.0911281319424682,
+    	lower whisker=5.20608479877642e-07,
+    	draw position=1.3
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.00502092514754222,
+    	upper quartile=0.0111544314291264,
+    	lower quartile=0.00222817207202541,
+    	upper whisker=0.024530269707971,
+    	lower whisker=1.63244826476312e-07,
+    	draw position=1.7
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0263637784408533,
+    	upper quartile=0.0495788498427721,
+    	lower quartile=0.0120410653347089,
+    	upper whisker=0.105879420133178,
+    	lower whisker=3.33943766459817e-06,
+    	draw position=2
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0202795482649189,
+    	upper quartile=0.0350947029911942,
+    	lower quartile=0.00945922499218077,
+    	upper whisker=0.0735420720432583,
+    	lower whisker=4.3019118946568e-07,
+    	draw position=2.3
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.00501591466402631,
+    	upper quartile=0.0114396062834768,
+    	lower quartile=0.00214807944307498,
+    	upper whisker=0.025297048657678,
+    	lower whisker=6.23589782193934e-07,
+    	draw position=2.7
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0252519449361701,
+    	upper quartile=0.0468677849335894,
+    	lower quartile=0.0114717604269273,
+    	upper whisker=0.0998396693579206,
+    	lower whisker=2.07916130227937e-06,
+    	draw position=3
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0189031234353415,
+    	upper quartile=0.0326607288170044,
+    	lower quartile=0.0088958817335817,
+    	upper whisker=0.0683030908464336,
+    	lower whisker=3.05563071521383e-07,
+    	draw position=3.3
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.00501810131691434,
+    	upper quartile=0.0116901928756403,
+    	lower quartile=0.00215357954700667,
+    	upper whisker=0.0259892989588043,
+    	lower whisker=1.14582169879384e-08,
+    	draw position=3.7
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0251657995967975,
+    	upper quartile=0.0458275463662492,
+    	lower quartile=0.0112875953666994,
+    	upper whisker=0.097545522377254,
+    	lower whisker=4.8812229502268e-06,
+    	draw position=4
+    },
+    ] coordinates {};
+    
+    \addplot+[
+    fill, draw=black,
+    boxplot prepared={
+    	median=0.0186071406214788,
+    	upper quartile=0.0321043172877283,
+    	lower quartile=0.00869521255959311,
+    	upper whisker=0.0672158658839255,
+    	lower whisker=1.43725253828689e-06,
+    	draw position=4.3
+    },
+    ] coordinates {};
+    
+    \end{axis}
 
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.149223187428938,
-	upper quartile=0.289171566661341,
-	lower quartile=0.0572146370769084,
-	upper whisker=0.637095292899595,
-	lower whisker=2.4316759664225e-06,
-	draw position=1
-},
-] coordinates {};
+    \begin{axis}[
+        xtick = {1,2,3,4},
+        ymin = 0.8,
+        ymax = 6,
+        xmin=0.25,
+        xmax=4.75,
+        hide x axis,
+        hide y axis,
+        height=3.5cm,
+        width=5.5cm
+    ]
+    %[draw=black, dashed, mark options={solid, fill=brown1814888, scale=0.8}, mark=square*]
+        \addplot [draw=indianred21811088, dotted, line width=.5mm] 
+        coordinates {
+            (1.3, 1.86849)
+            (2.3, 1.97563) 
+            (3.3, 2.10232) 
+            (4.3, 2.17287)
+        };
+        \addplot [draw=brown1814888, dashdotted, line width=.5mm] 
+        coordinates {
+              (1, 2.83175)      
+              (2, 2.99058) 
+              (3, 3.11884)
+              (4, 3.1957)
+        };
+        \addplot [draw=purple1194288, dashed, line width=.5mm] 
+        coordinates {
+              (0.7, 2.85937)     
+              (1.7, 2.98446) 
+              (2.7, 3.24437)
+              (3.7, 3.37276)
+        };
+        \addplot [draw=black, dashed, mark options={solid, fill=black}, mark=diamond*] 
+        coordinates {
+            (1, 2.51987)
+            (2, 2.65022)
+            (3, 2.82184)
+            (4, 2.91378)
+        };
+    \end{axis}
 
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.024192196108094,
-	upper quartile=0.0431635333689394,
-	lower quartile=0.0111862587323256,
-	upper whisker=0.0911281319424682,
-	lower whisker=5.20608479877642e-07,
-	draw position=1.3
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.00502092514754222,
-	upper quartile=0.0111544314291264,
-	lower quartile=0.00222817207202541,
-	upper whisker=0.024530269707971,
-	lower whisker=1.63244826476312e-07,
-	draw position=1.7
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.126350969558943,
-	upper quartile=0.246937344407609,
-	lower quartile=0.051221086099431,
-	upper whisker=0.540438183265904,
-	lower whisker=1.77688996105523e-06,
-	draw position=2
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.0202795482649189,
-	upper quartile=0.0350947029911942,
-	lower quartile=0.00945922499218077,
-	upper whisker=0.0735420720432583,
-	lower whisker=4.3019118946568e-07,
-	draw position=2.3
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.00501591466402631,
-	upper quartile=0.0114396062834768,
-	lower quartile=0.00214807944307498,
-	upper whisker=0.025297048657678,
-	lower whisker=6.23589782193934e-07,
-	draw position=2.7
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.118121763130052,
-	upper quartile=0.232987116902924,
-	lower quartile=0.048188968101674,
-	upper whisker=0.510158826429912,
-	lower whisker=1.03917571954776e-06,
-	draw position=3
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.0189031234353415,
-	upper quartile=0.0326607288170044,
-	lower quartile=0.0088958817335817,
-	upper whisker=0.0683030908464336,
-	lower whisker=3.05563071521383e-07,
-	draw position=3.3
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.00501810131691434,
-	upper quartile=0.0116901928756403,
-	lower quartile=0.00215357954700667,
-	upper whisker=0.0259892989588043,
-	lower whisker=1.14582169879384e-08,
-	draw position=3.7
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.115226900946624,
-	upper quartile=0.229115511833499,
-	lower quartile=0.0467045456109978,
-	upper whisker=0.502717026802374,
-	lower whisker=1.50588271988675e-06,
-	draw position=4
-},
-] coordinates {};
-
-\addplot+[
-fill, draw=black,
-boxplot prepared={
-	median=0.0186071406214788,
-	upper quartile=0.0321043172877283,
-	lower quartile=0.00869521255959311,
-	upper whisker=0.0672158658839255,
-	lower whisker=1.43725253828689e-06,
-	draw position=4.3
-},
-] coordinates {};
-\end{axis}
+    \begin{axis}[
+        ytick = {1,2,3,4,5},
+        xmin=0.25,
+        xmax=4.75,
+        ymin = 0.8,
+        ymax = 6,
+        hide x axis,
+        axis y line*=right,
+        ylabel={\footnotesize{NLS  time [ms]}},
+        height=3.5cm,
+        width=5.5cm,
+        ylabel style={font=\footnotesize},
+        yticklabel style = {/pgf/number format/fixed, ticklabel style={font=\footnotesize}},
+    ]
+  \end{axis}
 \end{tikzpicture}

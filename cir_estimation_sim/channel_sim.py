@@ -60,10 +60,11 @@ class channel_sim():
         # select OFDM with 16QAM modulation for 28 GHz carrier frequency
         if l==0.0107:
             # 5G-NR parameters
-            self.delta_f = 240e3 # subcarrier spacing [Hz]
-            self.n_sc = 1666 # number of subcarriers
+            self.delta_f = 120e3 # subcarrier spacing [Hz]
+            self.n_sc = 3332 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
+            #np.save('cir_estimation_sim/28_TXsignal.npy',self.tx_signal)
             self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
         if l==0.06:
             # 802.11ax parameters
@@ -812,7 +813,7 @@ class channel_sim():
 def varying_static_paths():
     interval = 16 # interval expressed in [ms]
     for n_static in [8]:
-        for l in [0.0107,0.06]:
+        for l in [0.0107]:
             print('number of static paths: ' + str(n_static))
             print('wavelength: ' + str(l) + ' m')
             if l==0.0107:
@@ -825,26 +826,33 @@ def varying_static_paths():
                 vmax = 5
                 s = 20
             ch_sim = channel_sim(vmax=vmax, SNR=5, l=l, n_static=n_static)
+            if l==0.0107:
+                T = ch_sim.T
+            ch_sim.T = T
             i = int(interval*1e-3/ch_sim.T)
-            npath_error, nls_time = ch_sim.simulation(x_max=s, y_max=s, N=100000, interval=i, path='data/varying_n/', save=False)
-            np.save('cir_estimation_sim/data/varying_npath/last_tot_5_fd_error_fc%s.npy'%(int(3e8/l*1e-9)),npath_error) 
-            np.save('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc%s.npy'%(int(3e8/l*1e-9)),nls_time)
+            npath_error, nls_time = ch_sim.simulation(x_max=s, y_max=s, N=10000, interval=i, path='data/varying_n/', save=False)
+            np.save('cir_estimation_sim/data/varying_npath/tot_5_fd_error_fc%s.npy'%(int(3e8/l*1e-9)),npath_error) 
+            np.save('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc%s.npy'%(int(3e8/l*1e-9)),nls_time)
             print('average fd estimate relative error: ' + str(np.mean(npath_error, axis=0))+'\n')
             print('median fd estimate relative error: ' + str(np.median(npath_error,axis=0))+'\n')
 
 def varying_snr():
-    for snr in [-5,0,10,20,30]:
+    interval = 16 # interval expressed in [ms]
+    for snr in [5]:
         for l in [0.0107,0.06]:
-            for a in [1,3,5]:
+            for a in [5]:
                 if l==0.0107:
                     vmax = 10
+                    s = 50
                 if l==0.06:
                     vmax=20
+                    s = 100
                 print('SNR: ' + str(snr) + ' dB')
                 print('wavelength: ' + str(l) + ' m')
                 print('AoA: ' + str(a) + '°')
                 ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=a)
-                fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa' + str(a) + '/', save=True)
+                i = int(interval*1e-3/ch_sim.T)
+                fd_error = ch_sim.simulation(x_max=s, y_max=s, N=10000, interval=i, path='cir_estimation_sim/data/varying_snr/aoa' + str(a) + '/', save=False)
                 print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
                 print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
 
@@ -899,12 +907,12 @@ if __name__=='__main__':
     # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
     
     #varying_static_paths()
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc5.npy')
-    print('average computational times per No. static paths, fc = 5 ' + str(np.mean(times,0)))
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc28.npy')
+    # times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc5.npy')
+    # print('average computational times per No. static paths, fc = 5 ' + str(np.mean(times,0)))
+    times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc28.npy')
     print('average computational times per No. static paths, fc = 28 ' + str(np.mean(times,0)))
-    times = np.load('cir_estimation_sim/data/varying_npath/last_tot_5_nls_time_fc60.npy')
-    print('average computational times per No. static paths, fc = 60 ' + str(np.mean(times,0)))
+    # times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc60.npy')
+    # print('average computational times per No. static paths, fc = 60 ' + str(np.mean(times,0)))
     
     # ch_sim = channel_sim(vmax=10, SNR=snr, AoAstd=np.deg2rad(5), l=0.0107, static_rx=False)
     # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=1000, interval=200, path='', save=False)

@@ -59,8 +59,8 @@ class channel_sim():
         # select OFDM with 16QAM modulation for 28 GHz carrier frequency
         if l==0.0107:
             # 5G-NR parameters
-            self.delta_f = 240e3 # subcarrier spacing [Hz]
-            self.n_sc = 1666 # number of subcarriers
+            self.delta_f = 120e3 # subcarrier spacing [Hz]
+            self.n_sc = 3332 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
             self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
@@ -553,7 +553,7 @@ class channel_sim():
             plt.show()
         return g
     
-    def get_phases(self, h, from_index= True, plot=False):
+    def get_phases(self, h, init=False, from_index= True, plot=False):
         """
             Returns cir phases [LoS,t,s1,...,sn_static].
             h: cir,
@@ -565,6 +565,8 @@ class channel_sim():
         else:
             ind = np.argsort(np.abs(h))[-len(self.paths['delay']):] # from cir peaks
         phases = np.angle(h[ind])
+        if init:
+            self.phases = np.zeros((self.n_static+2,2))
         self.phases[:,0] = self.phases[:,1]
         self.phases[:,1] = phases
         if plot:
@@ -694,6 +696,7 @@ class channel_sim():
                 for aoa in [1,3,5]:
                     self.AoAstd = np.deg2rad(aoa)
                     phase_diff = []
+                    self.k = 0
                     self.compute_cir(init=True,plot=False)
                     if self.l==0.005:
                         up_rx_signal = self.get_rxsignal(plot=False)
@@ -704,7 +707,7 @@ class channel_sim():
                         h = self.estimate_ofdm_CIR(Y, plot=False)
                     ### add cfo ###
                     h = self.add_po(self.add_cfo(h))
-                    self.get_phases(h)
+                    self.get_phases(h, init=True)
                     for p in range(1,len(self.phases[:,1])):
                             self.phases[p,1] = self.phases[p,1] - self.phases[0,1]
                     AoA = [self.paths['AoA'][1:] + np.random.normal(0,self.AoAstd,self.n_static+1)]
@@ -809,12 +812,14 @@ class channel_sim():
 if __name__=='__main__':
 
     interval = 16 # interval expressed in [ms]
-    for fc in [28,5]:
+    for fc in [28]:
         if fc==28:
+            npath_error = np.load('cir_estimation_sim/data/varying_snr/fd_k89_fc28_ns2.npy')
             vmax = 10
             l = 0.0107
             s = 50
         if fc==5:
+            npath_error = np.load('cir_estimation_sim/data/varying_snr/fd_k32_fc5_ns2.npy')
             vmax = 20
             l = 0.06
             s = 100
@@ -824,19 +829,22 @@ if __name__=='__main__':
             s = 20    
         ch_sim = channel_sim(vmax=vmax, SNR=None, l=l)
         i = int(interval*1e-3/ch_sim.T)
-        npath_error = ch_sim.simulation(x_max=s,y_max=s,N=10000,interval=i,path='cir_estimation_sim/data/varying_snr/',save_all=True)
+        npath_error = ch_sim.simulation(x_max=s,y_max=s,N=10000,interval=i,path='cir_estimation_sim/data/varying_snr/',save=True,save_all=True)
         npath_error = np.stack(npath_error,axis=0)
-        err_eta = np.load('cir_estimation_sim/test/eta/eta_abs_k%s_fc%s_ns2.npy'%(i,fc))
-        err_speed = np.load('cir_estimation_sim/test/speed/v_abs_k%s_fc%s_ns2.npy'%(i,fc))
+        err_eta = np.load('cir_estimation_sim/data/varying_snr/eta/eta_abs_k%s_fc%s_ns2.npy'%(i,fc))
+        err_speed = np.load('cir_estimation_sim/data/varying_snr/speed/v_abs_k%s_fc%s_ns2.npy'%(i,fc))
+        err_eta_rel = np.load('cir_estimation_sim/data/varying_snr/eta/eta_rel_k%s_fc%s_ns2.npy'%(i,fc))
+        err_speed_rel = np.load('cir_estimation_sim/data/varying_snr/speed/v_rel_k%s_fc%s_ns2.npy'%(i,fc))
+        print('\nfc= ' + str(fc))
         aoa=[1,3,5]
         for i in range(3):    
             print('\n\naverage fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(npath_error[:,:,i], axis=0))+'\n')
             print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(npath_error[:,:,i],axis=0))+'\n')
         
             print('average eta estimate absolute error ' + str(np.mean(err_eta[:,:,i], axis=0))+'\n')
-            print('median eta estimate absolute error ' + str(np.mean(err_eta[:,:,i], axis=0))+'\n')
+            print('median eta estimate absolute error ' + str(np.median(err_eta[:,:,i], axis=0))+'\n')
 
             
             print('average speed estimate absolute error ' + str(np.mean(err_speed[:,:,i], axis=0))+'\n')
-            print('median speed estimate absolute error ' + str(np.mean(err_speed[:,:,i], axis=0))+'\n')
+            print('median speed estimate absolute error ' + str(np.median(err_speed[:,:,i], axis=0))+'\n')
  
