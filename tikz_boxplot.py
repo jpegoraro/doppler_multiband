@@ -55,4 +55,4 @@ def tikz_boxplot(input_file, name, n_box):
     f_w.write('\\end{tikzpicture}')
     f_w.close()
 
-tikz_boxplot('cir_estimation_sim/plot/var_interfc_28.tex','cir_estimation_sim/plot/var_interval.tex',6)
+tikz_boxplot('cir_estimation_sim/plot/var_snr_relspeed_fc_28a_5.tex','cir_estimation_sim/plot/var_snr_relspeed.tex',4)

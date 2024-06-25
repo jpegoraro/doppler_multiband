@@ -89,7 +89,7 @@ class channel_sim():
         self.h_rrc = self.rrcos(129,self.us,1)
         n = int(1e-3/self.T) # number of samples in 1 ms
         fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
-        self.std_w = fo_max/(n)#fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max  
+        self.std_w = fo_max/(6*np.pi*self.T*(n+1))#fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max  
         a = 0
         
     def generate_16QAMsymbols(self, n_sc, unitAveragePower=True):
@@ -794,7 +794,7 @@ class channel_sim():
     
 if __name__=='__main__':
     interval = 48 # [ms]
-    for fc in [28]:
+    for fc in [5]:
         if fc==28:
             vmax = 10
             l = 0.0107

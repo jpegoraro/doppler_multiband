@@ -89,7 +89,7 @@ class channel_sim():
         self.h_rrc = self.rrcos(129,self.us,1)
         n = int(1e-3/self.T) # number of samples in 1 ms
         fo_max = 3e8/(self.l*10e6) # 0.1 ppm of the carrier frequency 
-        self.std_w = fo_max/(n)#fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max  
+        self.std_w =  fo_max/(6*np.pi*self.T*(n+1)) # std for independent samples of the cfo s.t. its max drift in 1 ms is fo_max #fo_max/(3*np.sqrt(n**3)) # std for the fo random walk s.t. its max drift in 1 ms is fo_max  
         a = 0
         
     def generate_16QAMsymbols(self, n_sc, unitAveragePower=True):
@@ -847,4 +847,11 @@ if __name__=='__main__':
             
             print('average speed estimate absolute error ' + str(np.mean(err_speed[:,:,i], axis=0))+'\n')
             print('median speed estimate absolute error ' + str(np.median(err_speed[:,:,i], axis=0))+'\n')
+
+            print('average eta estimate relative error ' + str(np.mean(err_eta_rel[:,:,i], axis=0))+'\n')
+            print('median eta estimate relative error ' + str(np.median(err_eta_rel[:,:,i], axis=0))+'\n')
+
+            
+            print('average speed estimate relative error ' + str(np.mean(err_speed_rel[:,:,i], axis=0))+'\n')
+            print('median speed estimate relative error ' + str(np.median(err_speed_rel[:,:,i], axis=0))+'\n')
  
