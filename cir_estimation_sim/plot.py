@@ -100,8 +100,15 @@ def plot_speed():
         if fc==60:
             data = np.load(path+'/v_rel_k96_fc60_ns2.npy')
         print('\nfc= ' + str(fc))
-        aoa=[5]
-        for i in range(1): 
+        if fc==60:
+            aoa=[1,3,5]
+            for i in range(3): 
+                print('\n\naverage speed estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
+                print('median speed estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
+                plot_boxplot('cir_estimation_sim/plot/',data[:,1:,i],'SNR [dB]','speed relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snr_relspeed_fc_%sa_%s' %(fc,aoa[i]))
+        else:
+            aoa=[5]
+            i=0
             print('\n\naverage speed estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
             print('median speed estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
             plot_boxplot('cir_estimation_sim/plot/',data[:,1:,i],'SNR [dB]','speed relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snr_relspeed_fc_%sa_%s' %(fc,aoa[i]))
@@ -120,18 +127,25 @@ def plot_eta():
         if fc==60:
             data = np.load(path+'/eta_rel_k96_fc60_ns2.npy')
         print('\nfc= ' + str(fc))
-        aoa=[5]
-        for i in range(1): 
+        if fc==60:
+            aoa=[1,3,5]
+            for i in range(3): 
+                print('\n\naverage eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
+                print('median eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
+                plot_boxplot('cir_estimation_sim/plot/',data[:,1:,i],'SNR [dB]','eta relative error [°]',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'rel_var_snr_eta_fc_%sa_%s' %(fc,aoa[i]))
+        else:
+            aoa=[5]
+            i=0
             print('\n\naverage eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
             print('median eta estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
             plot_boxplot('cir_estimation_sim/plot/',data[:,1:,i],'SNR [dB]','eta relative error [°]',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'rel_var_snr_eta_fc_%sa_%s' %(fc,aoa[i]))
-
+            
 def plot_npath():
     path = 'cir_estimation_sim/data/varying_npath'
     labels = [2,4,6,8]
-    fcs = [5,28]
+    fcs = [60,28,5]
     for fc in fcs:
-        data = np.load(path+'/test_tot_5_fd_error_fc%s.npy'%(fc))
+        data = np.load(path+'/tot_5_fd_error_fc%s.npy'%(fc))
         print('\nfc= ' + str(fc))
         print(np.median(data))
         plot_boxplot('cir_estimation_sim/plot/',data,'No. of paths','fD relative error',np.array(labels),'varying npath AoA=5°, fc=%s GHz' %(fc),'var_npathfc_%s' %(fc))
@@ -139,7 +153,7 @@ def plot_npath():
 def plot_interval():
     path = 'cir_estimation_sim/data/varying_interval'
     labels = [48,32,16,8,4,2]
-    fcs = [5]
+    fcs = [60,28,5]
     for fc in fcs:
         data = np.load(path+'/fd_snr5_fc%s_ns2.npy'%(fc))
         print('\nfc= ' + str(fc))
@@ -147,16 +161,29 @@ def plot_interval():
         plot_boxplot('cir_estimation_sim/plot/',data,'interval [ms]','fD relative error',np.array(labels),'varying interval AoA=5°, fc=%s GHz' %(fc),'var_interfc_%s' %(fc))
 
 def plot_snr():
-    path = 'cir_estimation_sim/data/varying_snr/static_rx'
+    path = 'cir_estimation_sim/data/varying_snr/static_rx/'
     labels = [-5,0,5,10,20]
     fcs = [60]
     for fc in fcs:
-        data = np.load(path+'/fd_k96_fc%s_ns2.npy'%(fc))
+        if fc==28:
+            data = np.load(path+'fd_k89_fc28_ns2.npy')
+        if fc==5:
+            data = np.load(path+'fd_k32_fc5_ns2.npy')
+        if fc==60:
+            data = np.load(path+'fd_k96_fc60_ns2.npy')
         print('\nfc= ' + str(fc))
-        aoa=[1,3,5]
-        for i in range(3): 
+        if fc!=28:
+            aoa=[1,3,5]
+            for i in range(3): 
+                print('\n\naverage fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
+                print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
+                plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snrfc_%sa_%s' %(fc,aoa[i]))
+        else:
+            aoa=[5]
+            i=0
             print('\n\naverage fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(data[:,:,i], axis=0))+'\n')
             print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(data[:,:,i],axis=0))+'\n')
             plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snrfc_%sa_%s' %(fc,aoa[i]))
+            
 
-plot_speed()
+plot_eta()

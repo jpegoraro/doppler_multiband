@@ -63,14 +63,16 @@ class channel_sim():
             self.n_sc = 3332 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
-            self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         if l==0.06:
             # 802.11ax parameters
             self.delta_f = 78.125e3 # subcarrier spacing [Hz]
             self.n_sc = 2048 # number of subcarriers
             self.B =  self.n_sc*self.delta_f # bandwidth [Hz] (160 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
-            self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         self.cir = None
         self.rx_signal = None
         self.k = 0 # dicrete time index
@@ -104,6 +106,11 @@ class channel_sim():
             power = np.mean(abs(QAM_symbols)**2)
             QAM_symbols = QAM_symbols/power
         return QAM_symbols
+
+    def generate_bpsk(self, n_sc):
+        txsym = np.random.randint(0,2,n_sc)
+        txsym[txsym==0] = -1
+        return txsym
 
     def rrcos(self, n, T, beta):
         """
@@ -693,7 +700,7 @@ class channel_sim():
                 eta_rel_err = []
                 v_abs_err = []
                 v_rel_err = []
-                for aoa in [1,3,5]:
+                for aoa in [5]:
                     self.AoAstd = np.deg2rad(aoa)
                     phase_diff = []
                     self.k = 0
@@ -812,7 +819,7 @@ class channel_sim():
 if __name__=='__main__':
 
     interval = 16 # interval expressed in [ms]
-    for fc in [28]:
+    for fc in [28,5]:
         if fc==28:
             npath_error = np.load('cir_estimation_sim/data/varying_snr/fd_k89_fc28_ns2.npy')
             vmax = 10
@@ -836,22 +843,23 @@ if __name__=='__main__':
         err_eta_rel = np.load('cir_estimation_sim/data/varying_snr/eta/eta_rel_k%s_fc%s_ns2.npy'%(i,fc))
         err_speed_rel = np.load('cir_estimation_sim/data/varying_snr/speed/v_rel_k%s_fc%s_ns2.npy'%(i,fc))
         print('\nfc= ' + str(fc))
-        aoa=[1,3,5]
-        for i in range(3):    
-            print('\n\naverage fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(npath_error[:,:,i], axis=0))+'\n')
-            print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(npath_error[:,:,i],axis=0))+'\n')
+        aoa=[5]
+        #for i in range(3):    
+        i = 0
+        print('\n\naverage fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.mean(npath_error[:,:,i], axis=0))+'\n')
+        print('median fd estimate relative error, AoA std=%s° '%(aoa[i]) + str(np.median(npath_error[:,:,i],axis=0))+'\n')
+    
+        print('average eta estimate absolute error ' + str(np.mean(err_eta[:,:,i], axis=0))+'\n')
+        print('median eta estimate absolute error ' + str(np.median(err_eta[:,:,i], axis=0))+'\n')
+
         
-            print('average eta estimate absolute error ' + str(np.mean(err_eta[:,:,i], axis=0))+'\n')
-            print('median eta estimate absolute error ' + str(np.median(err_eta[:,:,i], axis=0))+'\n')
+        print('average speed estimate absolute error ' + str(np.mean(err_speed[:,:,i], axis=0))+'\n')
+        print('median speed estimate absolute error ' + str(np.median(err_speed[:,:,i], axis=0))+'\n')
 
-            
-            print('average speed estimate absolute error ' + str(np.mean(err_speed[:,:,i], axis=0))+'\n')
-            print('median speed estimate absolute error ' + str(np.median(err_speed[:,:,i], axis=0))+'\n')
+        print('average eta estimate relative error ' + str(np.mean(err_eta_rel[:,:,i], axis=0))+'\n')
+        print('median eta estimate relative error ' + str(np.median(err_eta_rel[:,:,i], axis=0))+'\n')
 
-            print('average eta estimate relative error ' + str(np.mean(err_eta_rel[:,:,i], axis=0))+'\n')
-            print('median eta estimate relative error ' + str(np.median(err_eta_rel[:,:,i], axis=0))+'\n')
-
-            
-            print('average speed estimate relative error ' + str(np.mean(err_speed_rel[:,:,i], axis=0))+'\n')
-            print('median speed estimate relative error ' + str(np.median(err_speed_rel[:,:,i], axis=0))+'\n')
+        
+        print('average speed estimate relative error ' + str(np.mean(err_speed_rel[:,:,i], axis=0))+'\n')
+        print('median speed estimate relative error ' + str(np.median(err_speed_rel[:,:,i], axis=0))+'\n')
  

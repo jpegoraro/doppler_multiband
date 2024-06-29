@@ -65,14 +65,16 @@ class channel_sim():
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
             #np.save('cir_estimation_sim/28_TXsignal.npy',self.tx_signal)
-            self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         if l==0.06:
             # 802.11ax parameters
             self.delta_f = 78.125e3 # subcarrier spacing [Hz]
             self.n_sc = 2048 # number of subcarriers
             self.B =  self.n_sc*self.delta_f # bandwidth [Hz] (160 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
-            self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         self.cir = None
         self.rx_signal = None
         self.k = 0 # dicrete time index
@@ -106,6 +108,11 @@ class channel_sim():
             power = np.mean(abs(QAM_symbols)**2)
             QAM_symbols = QAM_symbols/power
         return QAM_symbols
+    
+    def generate_bpsk(self, n_sc):
+        txsym = np.random.randint(0,2,n_sc)
+        txsym[txsym==0] = -1
+        return txsym
 
     def rrcos(self, n, T, beta):
         """
@@ -828,8 +835,8 @@ def varying_static_paths():
             ch_sim = channel_sim(vmax=vmax, SNR=5, l=l, n_static=n_static)
             i = int(interval*1e-3/ch_sim.T)
             npath_error, nls_time = ch_sim.simulation(x_max=s, y_max=s, N=10000, interval=i, path='data/varying_n/', save=False)
-            np.save('cir_estimation_sim/data/varying_npath/test_tot_5_fd_error_fc%s.npy'%(int(3e8/l*1e-9)),npath_error) 
-            np.save('cir_estimation_sim/data/varying_npath/test_tot_5_nls_time_fc%s.npy'%(int(3e8/l*1e-9)),nls_time)
+            np.save('cir_estimation_sim/data/varying_npath/tot_5_fd_error_fc%s.npy'%(int(3e8/l*1e-9)),npath_error) 
+            np.save('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc%s.npy'%(int(3e8/l*1e-9)),nls_time)
             print('average fd estimate relative error: ' + str(np.mean(npath_error, axis=0))+'\n')
             print('median fd estimate relative error: ' + str(np.median(npath_error,axis=0))+'\n')
 
@@ -894,20 +901,20 @@ def varying_T():
 
 if __name__=='__main__':
 
-    vmax = 20
-    snr = 10
-    l = 0.06
+    # vmax = 20
+    # snr = 10
+    # l = 0.06
 
-    ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=np.deg2rad(3))
-    fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa3/', save=True)
-    print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
-    print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
+    # ch_sim = channel_sim(vmax=vmax,SNR=snr, l=l, AoAstd=np.deg2rad(3))
+    # fd_error = ch_sim.simulation(x_max=10, y_max=10, N=10000, interval=200, path='cir_estimation_sim/data/varying_snr/aoa3/', save=True)
+    # print('average fd estimate relative error: ' + str(np.mean(fd_error))+'\n')
+    # print('median fd estimate relative error: ' + str(np.median(fd_error))+'\n')
     
     varying_static_paths()
     # times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc5.npy')
     # print('average computational times per No. static paths, fc = 5 ' + str(np.mean(times,0)))
-    times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc28.npy')
-    print('average computational times per No. static paths, fc = 28 ' + str(np.mean(times,0)))
+    #times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc28.npy')
+    #print('average computational times per No. static paths, fc = 28 ' + str(np.mean(times,0)))
     # times = np.load('cir_estimation_sim/data/varying_npath/tot_5_nls_time_fc60.npy')
     # print('average computational times per No. static paths, fc = 60 ' + str(np.mean(times,0)))
     

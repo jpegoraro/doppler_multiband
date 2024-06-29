@@ -63,14 +63,16 @@ class channel_sim():
             self.n_sc = 3332 # number of subcarriers
             self.B = self.n_sc*self.delta_f # bandwidth [Hz] (almost 400 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
-            self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/28_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         if l==0.06:
             # 802.11ax parameters
             self.delta_f = 78.125e3 # subcarrier spacing [Hz]
             self.n_sc = 2048 # number of subcarriers
             self.B =  self.n_sc*self.delta_f # bandwidth [Hz] (160 MHz)
             #self.tx_signal = self.generate_16QAMsymbols(self.n_sc)
-            self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            #self.tx_signal = np.load('cir_estimation_sim/5_TXsignal.npy')
+            self.tx_signal = self.generate_bpsk(self.n_sc)
         self.cir = None
         self.rx_signal = None
         self.k = 0 # dicrete time index
@@ -104,6 +106,11 @@ class channel_sim():
             power = np.mean(abs(QAM_symbols)**2)
             QAM_symbols = QAM_symbols/power
         return QAM_symbols
+    
+    def generate_bpsk(self, n_sc):
+        txsym = np.random.randint(0,2,n_sc)
+        txsym[txsym==0] = -1
+        return txsym
 
     def rrcos(self, n, T, beta):
         """
@@ -794,7 +801,7 @@ class channel_sim():
     
 if __name__=='__main__':
     interval = 48 # [ms]
-    for fc in [5]:
+    for fc in [28,5]:
         if fc==28:
             vmax = 10
             l = 0.0107

@@ -796,5 +796,5 @@ if __name__=='__main__':
     exercise = sns.load_dataset("exercise")
     a=0
     sns.catplot(data=df, x='time', y='error', hue='npaths', kind='point', errorbar='sd', capsize=.2)
-    tik.save('cir_estimation_sim/plot/T/test.tex')
+    #tik.save('cir_estimation_sim/plot/T/test.tex')
     plt.show()
