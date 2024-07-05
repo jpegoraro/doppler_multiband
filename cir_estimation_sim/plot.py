@@ -161,7 +161,7 @@ def plot_interval():
         plot_boxplot('cir_estimation_sim/plot/',data,'interval [ms]','fD relative error',np.array(labels),'varying interval AoA=5°, fc=%s GHz' %(fc),'var_interfc_%s' %(fc))
 
 def plot_snr():
-    path = 'cir_estimation_sim/data/varying_snr/static_rx/'
+    path = 'cir_estimation_sim/data/varying_snr/'
     labels = [-5,0,5,10,20]
     fcs = [60]
     for fc in fcs:
@@ -186,4 +186,4 @@ def plot_snr():
             plot_boxplot('cir_estimation_sim/plot/',data[:,:,i],'SNR [dB]','fD relative error',np.array(labels),'varying snr AoA=%s°, fc=%s GHz' %(aoa[i],fc),'var_snrfc_%sa_%s' %(fc,aoa[i]))
             
 
-plot_eta()
+plot_snr()

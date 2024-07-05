@@ -801,7 +801,7 @@ class channel_sim():
     
 if __name__=='__main__':
     interval = 48 # [ms]
-    for fc in [28,5]:
+    for fc in [60]:
         if fc==28:
             vmax = 10
             l = 0.0107
@@ -816,7 +816,7 @@ if __name__=='__main__':
             s = 20       
         ch_sim = channel_sim(vmax=vmax, SNR=5, l=l)
         i = int(interval*1e-3/ch_sim.T)
-        inter_error = ch_sim.simulation(x_max=s,y_max=s,N=10000,interval=i,path='cir_estimation_sim/data/varying_interval/',save=True)
+        inter_error = ch_sim.simulation(x_max=s,y_max=s,N=10,interval=i,path='cir_estimation_sim/data/varying_interval/',save=True)
         inter_error = np.stack(inter_error,axis=0)
 
         print('average fd estimate relative error, with fc= ' + str(fc) + str(np.mean(inter_error, axis=0))+'\n')
