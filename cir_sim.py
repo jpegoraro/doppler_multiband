@@ -2,9 +2,11 @@ from pathlib import Path
 import numpy as np
 import scipy as sp
 from scipy.io import loadmat
-#import h5py
+
+# import h5py
 import matplotlib.pyplot as plt
-#from utils import *
+
+# from utils import *
 import pickle
 import tqdm
 from scipy.signal import correlate, correlation_lags
@@ -68,7 +70,7 @@ def simulate_channel(params, ncir=256, ncfr=256, add_to=True, add_cfo=True):
 
     cir_clean = np.fft.ifft(H_clean * np.hanning(ncfr))
     cir_tot = np.fft.ifft(Htot * np.hanning(ncfr))
-    print(delays*params["B"])
+    print(delays * params["B"])
     plt.plot(abs(cir_clean))
     plt.show()
 
@@ -173,7 +175,7 @@ if __name__ == "__main__":
         for i in range(params["simlen"]):
             print("iteration: ", i, end="\r")
 
-            npaths = 4#np.random.choice(np.arange(2, 10))
+            npaths = 4  # np.random.choice(np.arange(2, 10))
             params["ranges"] = np.zeros(npaths)
             params["ranges"][0] = np.random.uniform(1, 2)
             params["ranges"][1:] = np.sort(
@@ -218,16 +220,16 @@ if __name__ == "__main__":
             h_est_clean = estimate_CIR(y_clean_noisy, Ga, Gb)
             h_est_off = estimate_CIR(y_off_noisy, Ga, Gb)
             h_est_clean_no_noise = estimate_CIR(y_clean, Ga, Gb)
-            
-            #noise = pass_through_channel(noise1,true_h_clean)
-            #noise = correlate(signal,noise)
+
+            # noise = pass_through_channel(noise1,true_h_clean)
+            # noise = correlate(signal,noise)
             ind = np.argmax(h_est_clean)
             ind1 = np.argmax(h_est_clean_no_noise)
-           
-            noise = h_est_clean[ind1]-h_est_clean_no_noise[ind1]
-            new_s = 10*np.log10(np.abs(h_est_clean[ind1])**2/np.abs(noise)**2)
+
+            noise = h_est_clean[ind1] - h_est_clean_no_noise[ind1]
+            new_s = 10 * np.log10(np.abs(h_est_clean[ind1]) ** 2 / np.abs(noise) ** 2)
             snr.append(new_s)
-            temp_g.append(10**((new_s-s)/10)) # linear gain
+            temp_g.append(10 ** ((new_s - s) / 10))  # linear gain
 
             # example plots
             if params["plot"]:
@@ -243,8 +245,12 @@ if __name__ == "__main__":
                 ax[0].set_ylabel("CIR magnitude")
                 ax[0].legend()
 
-                ax[1].plot(np.abs(true_h_off) / np.max(np.abs(true_h_off)), label="True")
-                ax[1].plot(np.abs(h_est_off) / np.max(np.abs(h_est_off)), label="Estimated")
+                ax[1].plot(
+                    np.abs(true_h_off) / np.max(np.abs(true_h_off)), label="True"
+                )
+                ax[1].plot(
+                    np.abs(h_est_off) / np.max(np.abs(h_est_off)), label="Estimated"
+                )
                 ax[1].set_title("With offset")
                 ax[1].set_xlabel("Delay bins")
                 ax[1].set_ylabel("CIR magnitude")
@@ -253,5 +259,5 @@ if __name__ == "__main__":
                 plt.tight_layout()
                 plt.show()
         g[k] = np.mean(temp_g)
-        print('Average after channel snr: ' + str(np.mean(snr)) + ' dB')
-        print('Average linear gain after the channel : ' + str(g[k]))
+        print("Average after channel snr: " + str(np.mean(snr)) + " dB")
+        print("Average linear gain after the channel : " + str(g[k]))
