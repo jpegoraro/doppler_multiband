@@ -24,9 +24,10 @@ class ChannelFrequencyResponse:
         self.n_subbands = len(params["subbands_carriers"])
 
         scatter_amplitudes = np.array(params["scatter_amplitudes"])
-        scatter_phases = np.array(
-            [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths)]
-        )
+        # scatter_phases = np.array(
+        #     [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths)]
+        # )
+        scatter_phases = np.zeros_like(scatter_amplitudes)
         self.scatter_coeff = scatter_amplitudes * np.exp(1j * scatter_phases)
 
         self.velocities = np.array(params["velocities"])
@@ -38,6 +39,7 @@ class ChannelFrequencyResponse:
         self.slow_time_samples = params["slow_time_samples"]
         self.Tslow = params["Tslow"]
         self.Tfast = 1 / self.subbands_bandwidth[0]
+        self.carrier_phase_vectors = {i: None for i in range(self.n_subbands)}
 
         self.subbands_CFR = {i: None for i in range(self.n_subbands)}
         self.subbands_CIR = {i: None for i in range(self.n_subbands)}
@@ -75,7 +77,6 @@ class ChannelFrequencyResponse:
             self.subbands_CFR[i] = np.zeros(
                 (self.fast_time_samples, self.slow_time_samples), dtype=complex
             )
-            fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
 
             # ugly loop to be sure it works
             for j in range(self.n_paths):
@@ -86,7 +87,7 @@ class ChannelFrequencyResponse:
                             * np.exp(  # delay term
                                 -2j
                                 * np.pi
-                                * (fgrid[n] + self.subbands_carriers[i])
+                                * (n * self.sc_spacing + self.subbands_carriers[i])
                                 * self.delays[j]
                             )
                             * np.exp(  # doppler term
@@ -94,33 +95,10 @@ class ChannelFrequencyResponse:
                                 * np.pi
                                 * (self.velocities[j] / 3e8)
                                 * self.subbands_carriers[i]
-                                * np.arange(self.slow_time_samples)[k]
+                                * k
                                 * self.Tslow
                             )
                         )
-
-                # path_delay_component = self.scatter_coeff[j] * np.exp(
-                #     -2j * np.pi * (fgrid + self.subbands_carriers[i]) * self.delays[j]
-                # )
-                # self.subbands_CFR[i] += np.tile(
-                #     path_delay_component, (self.slow_time_samples, 1)
-                # ).T
-
-                # # plt.imshow(self.subbands_CFR[i].real, aspect="auto")
-                # # plt.show()
-
-                # path_doppler_component = np.exp(
-                #     2j
-                #     * np.pi
-                #     * (self.velocities[j] / 3e8)
-                #     * self.subbands_carriers[i]
-                #     * np.arange(self.slow_time_samples)
-                #     * self.Tslow
-                # )  # add doppler shift
-
-                # self.subbands_CFR[i] *= np.tile(
-                #     path_doppler_component, (self.fast_time_samples, 1)
-                # )
 
             cfo_component = np.exp(2j * np.pi * self.CFOs[i])
             self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
@@ -128,17 +106,25 @@ class ChannelFrequencyResponse:
             rpo_component = np.exp(1j * self.RPOs[i])
             self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
+            fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
             to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
             self.subbands_CFR[i] *= to_component
-
-            # plt.imshow(np.real(self.subbands_CFR[i]), aspect="auto")
-            # plt.show()
 
     def compute_CIR(self):
         for i in range(self.n_subbands):
             self.subbands_CIR[i] = np.fft.ifft(self.subbands_CFR[i], axis=0)
 
             # plt.imshow(np.abs(self.subbands_CIR[i]), aspect="auto")
+            # plt.show()
+
+    def get_carrier_phase_vector(self):
+        for i in range(self.n_subbands):
+            fast_time_grid = np.arange(self.fast_time_samples) * self.Tfast
+            self.carrier_phase_vectors[i] = (
+                -2 * np.pi * self.subbands_carriers[i] * fast_time_grid
+            ) % (2 * np.pi)
+
+            # plt.plot(np.exp(1j * self.carrier_phase_vectors[i]).real)
             # plt.show()
 
 
@@ -171,9 +157,26 @@ class SignalProcessor:
         # slow-time DFT
         for i in range(self.subb_chn.n_subbands):
             st_cir_dft = np.fft.fft(self.subb_chn.subbands_CIR[i], axis=1)
-
-            plt.imshow(np.abs(st_cir_dft)[:30], aspect="auto")
-            plt.show()
+            # get max doppler peak for each fast-time bin
+            max_doppler_idx = np.argmax(np.abs(st_cir_dft), axis=1)
+            # get corresponding phases
+            initial_doppler_phases = np.angle(
+                st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
+            )
+            # remove carrier phase part
+            initial_doppler_phases -= self.subb_chn.carrier_phase_vectors[i]
+            # apply phase correction
+            st_cir_dft *= np.exp(-1j * initial_doppler_phases[:, np.newaxis])
+            # plt.imshow(np.abs(st_cir_dft)[:30], aspect="auto")
+            # plt.show()
+            corrected_cir = np.fft.ifft(st_cir_dft, axis=1)
+            self.subb_chn.subbands_CIR[i] = corrected_cir
+            self.subb_chn.subbands_CFR[i] = np.fft.fft(
+                self.subb_chn.subbands_CIR[i], axis=0
+            )
+            # print()
+            # plt.imshow(np.abs(st_cir_dft)[:30], aspect="auto")
+            # plt.show()
 
 
 if __name__ == "__main__":
@@ -181,6 +184,7 @@ if __name__ == "__main__":
     cfr = ChannelFrequencyResponse(CHANNEL_PARAMS)
     cfr.generate_subbands_CFR()
     cfr.compute_CIR()
+    cfr.get_carrier_phase_vector()
 
     proc = SignalProcessor(cfr)
     proc.TO_compensation()
