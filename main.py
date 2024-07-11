@@ -161,23 +161,41 @@ class SignalProcessor:
         # slow-time DFT
         for i in range(self.subb_chn.n_subbands):
             st_cir_dft = np.fft.fft(self.subb_chn.subbands_CIR[i], axis=1)
+            approx_range_prof = np.abs(self.subb_chn.subbands_CIR[i][:, 0])
+            peaks, values = sp.signal.find_peaks(
+                approx_range_prof, height=0.05 * np.max(approx_range_prof)
+            )
+            # plot the aprox range profile and the peaks
+            # plt.close()
+            # plt.plot(approx_range_prof)
+            # plt.plot(peaks, values["peak_heights"], "x")
+            # plt.show()
             # get max doppler peak for each fast-time bin
             max_doppler_idx = np.argmax(np.abs(st_cir_dft), axis=1)
             # get corresponding phases
-            initial_doppler_phases = np.angle(
-                st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
+            # initial_doppler_phases = np.angle(
+            #     st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
+            # )
+            initial_doppler_phases = np.zeros_like(max_doppler_idx)
+            initial_doppler_phases[peaks[0]] = np.angle(
+                st_cir_dft[peaks[0], max_doppler_idx[peaks[0]]]
             )
             # remove carrier phase part
             # plt.plot(self.subb_chn.carrier_phase_vectors[i])
             # plt.plot(initial_doppler_phases)
             # plt.show()
-            initial_doppler_phases -= self.subb_chn.carrier_phase_vectors[i]
+            # initial_doppler_phases -= self.subb_chn.carrier_phase_vectors[i]
             # apply phase correction
             # st_cir_dft *= np.exp(-1j * initial_doppler_phases[:, np.newaxis])
             # plt.imshow(np.abs(st_cir_dft)[:30], aspect="auto")
             # plt.show()
-            corrected_cir = np.fft.ifft(st_cir_dft, axis=1) * np.exp(
-                -1j * initial_doppler_phases[:, np.newaxis]
+            # test = np.fft.ifft(st_cir_dft, axis=1)
+            # plt.imshow(np.abs(test), aspect="auto")
+            # plt.show()
+            corrected_cir = (
+                np.fft.ifft(st_cir_dft, axis=1)
+                * np.exp(-1j * initial_doppler_phases[:, np.newaxis])
+                * np.exp(-1j * self.subb_chn.carrier_phase_vectors[i][:, np.newaxis])
             )
             self.subb_chn.subbands_CIR[i] = corrected_cir
             self.subb_chn.subbands_CFR[i] = np.fft.fft(
