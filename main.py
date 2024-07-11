@@ -6,7 +6,7 @@ CHANNEL_PARAMS = {
     "scatter_amplitudes": [10, 5],
     "velocities": [0.0, 3.0],  # [m/s]
     "delays": [0.0, 20e-9],  # [s]
-    "subbands_carriers": [60.48e9, 62.64e9],  # [Hz]
+    "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
     "sc_spacing": 240e3,  # [Hz]
     "Tslow": 1e-3,  # [s]
@@ -78,6 +78,10 @@ class ChannelFrequencyResponse:
                 (self.fast_time_samples, self.slow_time_samples), dtype=complex
             )
 
+            carrier_freq_mod = (
+                self.subbands_carriers[i] + 3e9 if i == 1 else self.subbands_carriers[i]
+            )
+
             # ugly loop to be sure it works
             for j in range(self.n_paths):
                 for n in range(self.fast_time_samples):
@@ -94,7 +98,7 @@ class ChannelFrequencyResponse:
                                 2j
                                 * np.pi
                                 * (self.velocities[j] / 3e8)
-                                * self.subbands_carriers[i]
+                                * carrier_freq_mod
                                 * k
                                 * self.Tslow
                             )
@@ -122,7 +126,7 @@ class ChannelFrequencyResponse:
             fast_time_grid = np.arange(self.fast_time_samples) * self.Tfast
             self.carrier_phase_vectors[i] = (
                 -2 * np.pi * self.subbands_carriers[i] * fast_time_grid
-            ) % (2 * np.pi)
+            )
 
             # plt.plot(np.exp(1j * self.carrier_phase_vectors[i]).real)
             # plt.show()
@@ -164,12 +168,17 @@ class SignalProcessor:
                 st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
             )
             # remove carrier phase part
+            # plt.plot(self.subb_chn.carrier_phase_vectors[i])
+            # plt.plot(initial_doppler_phases)
+            # plt.show()
             initial_doppler_phases -= self.subb_chn.carrier_phase_vectors[i]
             # apply phase correction
-            st_cir_dft *= np.exp(-1j * initial_doppler_phases[:, np.newaxis])
+            # st_cir_dft *= np.exp(-1j * initial_doppler_phases[:, np.newaxis])
             # plt.imshow(np.abs(st_cir_dft)[:30], aspect="auto")
             # plt.show()
-            corrected_cir = np.fft.ifft(st_cir_dft, axis=1)
+            corrected_cir = np.fft.ifft(st_cir_dft, axis=1) * np.exp(
+                -1j * initial_doppler_phases[:, np.newaxis]
+            )
             self.subb_chn.subbands_CIR[i] = corrected_cir
             self.subb_chn.subbands_CFR[i] = np.fft.fft(
                 self.subb_chn.subbands_CIR[i], axis=0
@@ -189,4 +198,19 @@ if __name__ == "__main__":
     proc = SignalProcessor(cfr)
     proc.TO_compensation()
     proc.CFO_compensation()
+
+    cfr1 = cfr.subbands_CFR[0][:, 0]
+    grid1 = np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[0]
+    cfr2 = cfr.subbands_CFR[1][:, 0]
+    grid2 = np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[1]
+    cfr2 = cfr.subbands_CFR[1][:, 0]
+    plt.plot(grid1, cfr1.real, "r")
+    plt.plot(grid2, cfr2.real, "b")
+
     proc.Doppler_compensation()
+
+    cfr1 = cfr.subbands_CFR[0][:, 0]
+    cfr2 = cfr.subbands_CFR[1][:, 0]
+    plt.plot(grid1, cfr1.real, "--r")
+    plt.plot(grid2, cfr2.real, "--b")
+    plt.show()
