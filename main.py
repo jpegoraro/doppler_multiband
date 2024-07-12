@@ -67,6 +67,13 @@ class ChannelFrequencyResponse:
             )
 
         if params["TO"] == "normal":
+            # self.TOs = np.array(
+            #     [
+            #         np.random.choice(np.arange(10), size=(1, self.slow_time_samples))
+            #         * self.Tfast
+            #         for _ in range(self.n_subbands)
+            #     ]
+            # )
             self.TOs = np.array(
                 [
                     np.random.uniform(0, 1, size=(1, self.slow_time_samples))
@@ -107,7 +114,7 @@ class ChannelFrequencyResponse:
                                 * (self.t0 + k * self.Tslow)
                             )
                         )
-                print()
+                # print()
 
             cfo_component = np.exp(2j * np.pi * self.CFOs[i])
             self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
@@ -115,14 +122,14 @@ class ChannelFrequencyResponse:
             rpo_component = np.exp(1j * self.RPOs[i])
             self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
-            # fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
-            # to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
-            # self.subbands_CFR[i] *= to_component
+            fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
+            to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
+            self.subbands_CFR[i] *= to_component
 
     def compute_CIR(self):
         for i in range(self.n_subbands):
             self.subbands_CIR[i] = np.fft.ifft(self.subbands_CFR[i], axis=0)
-            print()
+            # print()
 
             # plt.imshow(np.abs(self.subbands_CIR[i]), aspect="auto")
             # plt.show()
@@ -252,7 +259,7 @@ if __name__ == "__main__":
         cfr.get_carrier_phase_vector()
 
         proc = SignalProcessor(cfr)
-        # proc.TO_compensation()
+        proc.TO_compensation()
         proc.PO_compensation()
 
         cfr1 = cfr.subbands_CFR[0][:, 0]
