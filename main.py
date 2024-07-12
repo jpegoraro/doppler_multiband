@@ -27,7 +27,7 @@ class ChannelFrequencyResponse:
         scatter_amplitudes = np.array(params["scatter_amplitudes"])
         scatter_phases = np.array(
             [0.0]
-            + [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths - 1)]
+            + [np.random.uniform(0, 1) * 2 * np.pi for _ in range(self.n_paths - 1)]
         )
         # scatter_phases = np.zeros_like(scatter_amplitudes)
         self.scatter_coeff = scatter_amplitudes * np.exp(1j * scatter_phases)

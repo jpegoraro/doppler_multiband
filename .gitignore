@@ -2,9 +2,12 @@
 /books
 /utils
 /data
-/cir_estimation_sim/data
+/figs
 /drawings
 __pycache__
 .vscode
 *.asv
 *.sif
+*.png
+*.npy
+*.mat
