@@ -26,7 +26,8 @@ class ChannelFrequencyResponse:
 
         scatter_amplitudes = np.array(params["scatter_amplitudes"])
         scatter_phases = np.array(
-            [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths)]
+            [0.0]
+            + [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths - 1)]
         )
         # scatter_phases = np.zeros_like(scatter_amplitudes)
         self.scatter_coeff = scatter_amplitudes * np.exp(1j * scatter_phases)
@@ -105,11 +106,11 @@ class ChannelFrequencyResponse:
                             )
                         )
 
-            # cfo_component = np.exp(2j * np.pi * self.CFOs[i])
-            # self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
+            cfo_component = np.exp(2j * np.pi * self.CFOs[i])
+            self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
 
-            # rpo_component = np.exp(1j * self.RPOs[i])
-            # self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
+            rpo_component = np.exp(1j * self.RPOs[i])
+            self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
             # fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
             # to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
@@ -217,30 +218,39 @@ class SignalProcessor:
 
 if __name__ == "__main__":
 
-    cfr = ChannelFrequencyResponse(CHANNEL_PARAMS)
-    cfr.generate_subbands_CFR()
-    cfr.compute_CIR()
-    cfr.get_carrier_phase_vector()
+    for kk in range(100):
 
-    proc = SignalProcessor(cfr)
-    proc.TO_compensation()
-    proc.CFO_compensation()
+        cfr = ChannelFrequencyResponse(CHANNEL_PARAMS)
+        cfr.generate_subbands_CFR()
+        cfr.compute_CIR()
+        cfr.get_carrier_phase_vector()
 
-    cfr1 = cfr.subbands_CFR[0][:, 0]
-    grid1 = np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[0]
-    cfr2 = cfr.subbands_CFR[1][:, 0]
-    grid2 = np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[1]
-    cfr2 = cfr.subbands_CFR[1][:, 0]
-    plt.plot(grid1, cfr1.real, "r")
-    plt.plot(grid2, cfr2.real, "b")
+        proc = SignalProcessor(cfr)
+        proc.TO_compensation()
+        proc.CFO_compensation()
 
-    proc.Doppler_compensation()
+        cfr1 = cfr.subbands_CFR[0][:, 0]
+        grid1 = (
+            np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[0]
+        )
+        cfr2 = cfr.subbands_CFR[1][:, 0]
+        grid2 = (
+            np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[1]
+        )
+        cfr2 = cfr.subbands_CFR[1][:, 0]
+        plt.plot(grid1, np.angle(cfr1), "r")
+        plt.plot(grid2, np.angle(cfr2), "b")
 
-    cfr1 = cfr.subbands_CFR[0][:, 0]
-    cfr2 = cfr.subbands_CFR[1][:, 0]
-    plt.plot(grid1, cfr1.real, "--r")
-    plt.plot(grid2, cfr2.real, "--b")
-    plt.show()
+        proc.Doppler_compensation()
+
+        cfr1 = cfr.subbands_CFR[0][:, 0]
+        cfr2 = cfr.subbands_CFR[1][:, 0]
+        plt.plot(grid1, np.angle(cfr1), "--r")
+        plt.plot(grid2, np.angle(cfr2), "--b")
+        # plt.show()
+        plt.xlim([6.085e10, 6.09e10])
+        plt.savefig(f"figs/fig_{kk}.png")
+        plt.close()
 
     # fig, ax = plt.subplots(1, 2)
     # ax[0].plot(grid1, np.abs(cfr.subbands_CFR[0][:, 0]))
