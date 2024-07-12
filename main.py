@@ -3,12 +3,12 @@ from utils import *
 import matplotlib.pyplot as plt
 
 CHANNEL_PARAMS = {
-    # "scatter_amplitudes": [10, 5],
-    # "velocities": [0.0, 3.0],  # [m/s]
-    # "delays": [0.0, 20e-9],  # [s]
-    "scatter_amplitudes": [30],
-    "velocities": [3.0],  # [m/s]
-    "delays": [20e-9],  # [s]
+    "scatter_amplitudes": [10, 5],
+    "velocities": [0.0, 3.0],  # [m/s]
+    "delays": [0.0, 20e-9],  # [s]
+    # "scatter_amplitudes": [30],
+    # "velocities": [3.0],  # [m/s]
+    # "delays": [20e-9],  # [s]
     "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
     "sc_spacing": 240e3,  # [Hz]
@@ -28,11 +28,10 @@ class ChannelFrequencyResponse:
         self.n_subbands = len(params["subbands_carriers"])
 
         scatter_amplitudes = np.array(params["scatter_amplitudes"])
-        # scatter_phases = np.array(
-        #     [0.0]
-        #     + [np.random.uniform(-1, 1) * np.pi for _ in range(self.n_paths - 1)]
-        # )
-        scatter_phases = np.zeros_like(scatter_amplitudes)
+        scatter_phases = np.array(
+            [0.0] + [np.random.uniform(-1, 1) * np.pi for _ in range(self.n_paths - 1)]
+        )
+        # scatter_phases = np.zeros_like(scatter_amplitudes)
         self.scatter_coeff = scatter_amplitudes * np.exp(1j * scatter_phases)
 
         self.velocities = np.array(params["velocities"])
@@ -110,11 +109,11 @@ class ChannelFrequencyResponse:
                         )
                 print()
 
-            # cfo_component = np.exp(2j * np.pi * self.CFOs[i])
-            # self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
+            cfo_component = np.exp(2j * np.pi * self.CFOs[i])
+            self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
 
-            # rpo_component = np.exp(1j * self.RPOs[i])
-            # self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
+            rpo_component = np.exp(1j * self.RPOs[i])
+            self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
             # fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
             # to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
@@ -254,7 +253,7 @@ if __name__ == "__main__":
 
         proc = SignalProcessor(cfr)
         # proc.TO_compensation()
-        # proc.PO_compensation()
+        proc.PO_compensation()
 
         cfr1 = cfr.subbands_CFR[0][:, 0]
         grid1 = (
