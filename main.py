@@ -9,6 +9,7 @@ CHANNEL_PARAMS = {
     "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
     "sc_spacing": 240e3,  # [Hz]
+    "t0": 0.019,  # [s]
     "Tslow": 1e-3,  # [s]
     "slow_time_samples": 64,
     "nominal_CFO": 1e-5,  # [ppm]
@@ -24,10 +25,10 @@ class ChannelFrequencyResponse:
         self.n_subbands = len(params["subbands_carriers"])
 
         scatter_amplitudes = np.array(params["scatter_amplitudes"])
-        # scatter_phases = np.array(
-        #     [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths)]
-        # )
-        scatter_phases = np.zeros_like(scatter_amplitudes)
+        scatter_phases = np.array(
+            [np.random.normal(0, 1) * 2 * np.pi for _ in range(self.n_paths)]
+        )
+        # scatter_phases = np.zeros_like(scatter_amplitudes)
         self.scatter_coeff = scatter_amplitudes * np.exp(1j * scatter_phases)
 
         self.velocities = np.array(params["velocities"])
@@ -39,6 +40,7 @@ class ChannelFrequencyResponse:
         self.slow_time_samples = params["slow_time_samples"]
         self.Tslow = params["Tslow"]
         self.Tfast = 1 / self.subbands_bandwidth[0]
+        self.t0 = params["t0"]
         self.carrier_phase_vectors = {i: None for i in range(self.n_subbands)}
 
         self.subbands_CFR = {i: None for i in range(self.n_subbands)}
@@ -79,7 +81,7 @@ class ChannelFrequencyResponse:
             )
 
             carrier_freq_mod = (
-                self.subbands_carriers[i] + 3e9 if i == 1 else self.subbands_carriers[i]
+                self.subbands_carriers[i] if i == 1 else self.subbands_carriers[i]
             )
 
             # ugly loop to be sure it works
@@ -99,20 +101,19 @@ class ChannelFrequencyResponse:
                                 * np.pi
                                 * (self.velocities[j] / 3e8)
                                 * carrier_freq_mod
-                                * k
-                                * self.Tslow
+                                * (self.t0 + k * self.Tslow)
                             )
                         )
 
-            cfo_component = np.exp(2j * np.pi * self.CFOs[i])
-            self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
+            # cfo_component = np.exp(2j * np.pi * self.CFOs[i])
+            # self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
 
-            rpo_component = np.exp(1j * self.RPOs[i])
-            self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
+            # rpo_component = np.exp(1j * self.RPOs[i])
+            # self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
-            fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
-            to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
-            self.subbands_CFR[i] *= to_component
+            # fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
+            # to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
+            # self.subbands_CFR[i] *= to_component
 
     def compute_CIR(self):
         for i in range(self.n_subbands):
@@ -144,7 +145,9 @@ class SignalProcessor:
                 peaks, _ = sp.signal.find_peaks(pdp, height=0.05 * np.max(pdp))
                 rolled_cir = np.roll(cir, -peaks[0])
                 self.subb_chn.subbands_CIR[i][:, k] = rolled_cir
-                self.subb_chn.subbands_CFR[i][:, k] = np.fft.fft(rolled_cir, axis=0)
+                self.subb_chn.subbands_CFR[i][:, k] = np.fft.fft(
+                    rolled_cir, axis=0, n=self.subb_chn.fast_time_samples
+                )
 
     def CFO_compensation(self):
         for i in range(self.subb_chn.n_subbands):
@@ -167,15 +170,16 @@ class SignalProcessor:
             )
             # plot the aprox range profile and the peaks
             # plt.close()
-            # plt.plot(approx_range_prof)
-            # plt.plot(peaks, values["peak_heights"], "x")
+            # fig, ax = plt.subplots(1, 2)
+            # ax[0].plot(np.abs(st_cir_dft[:, 0]))
+            # ax[1].plot(np.angle(st_cir_dft[:, 0]))
             # plt.show()
             # get max doppler peak for each fast-time bin
             max_doppler_idx = np.argmax(np.abs(st_cir_dft), axis=1)
-            # get corresponding phases
-            # initial_doppler_phases = np.angle(
-            #     st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
-            # )
+            # # get corresponding phases
+            # # initial_doppler_phases = np.angle(
+            # #     st_cir_dft[np.arange(st_cir_dft.shape[0]), max_doppler_idx]
+            # # )
             initial_doppler_phases = np.zeros_like(max_doppler_idx)
             initial_doppler_phases[peaks[0]] = np.angle(
                 st_cir_dft[peaks[0], max_doppler_idx[peaks[0]]]
@@ -192,11 +196,16 @@ class SignalProcessor:
             # test = np.fft.ifft(st_cir_dft, axis=1)
             # plt.imshow(np.abs(test), aspect="auto")
             # plt.show()
+            carrier_phase_vec = np.zeros_like(initial_doppler_phases)
+            carrier_phase_vec[peaks[0]] = self.subb_chn.carrier_phase_vectors[i][
+                peaks[0]
+            ]
             corrected_cir = (
                 np.fft.ifft(st_cir_dft, axis=1)
                 * np.exp(-1j * initial_doppler_phases[:, np.newaxis])
-                * np.exp(-1j * self.subb_chn.carrier_phase_vectors[i][:, np.newaxis])
+                * np.exp(-1j * carrier_phase_vec[:, np.newaxis])
             )
+            # corrected_cir = np.fft.ifft(st_cir_dft, axis=1)
             self.subb_chn.subbands_CIR[i] = corrected_cir
             self.subb_chn.subbands_CFR[i] = np.fft.fft(
                 self.subb_chn.subbands_CIR[i], axis=0
@@ -232,3 +241,10 @@ if __name__ == "__main__":
     plt.plot(grid1, cfr1.real, "--r")
     plt.plot(grid2, cfr2.real, "--b")
     plt.show()
+
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].plot(grid1, np.abs(cfr.subbands_CFR[0][:, 0]))
+    # ax[0].plot(grid2, np.abs(cfr.subbands_CFR[1][:, 0]))
+    # ax[1].plot(np.angle(cfr.subbands_CFR[0][:, 0]))
+    # ax[1].plot(np.angle(cfr.subbands_CFR[1][:, 0]))
+    # plt.show()
