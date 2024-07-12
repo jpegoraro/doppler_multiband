@@ -3,7 +3,7 @@ from utils import *
 import matplotlib.pyplot as plt
 
 CHANNEL_PARAMS = {
-    "scatter_amplitudes": [10, 5],
+    "scatter_amplitudes": [10, 7],
     "velocities": [0.0, 3.0],  # [m/s]
     "delays": [0.0, 20e-9],  # [s]
     # "scatter_amplitudes": [30],
@@ -11,6 +11,8 @@ CHANNEL_PARAMS = {
     # "delays": [20e-9],  # [s]
     "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
+    "fast_time_oversampling": 128,
+    "slow_time_oversampling": 64,
     "sc_spacing": 240e3,  # [Hz]
     "t0": 0.019,  # [s]
     "Tslow": 0.9e-3,  # [s]
@@ -45,6 +47,9 @@ class ChannelFrequencyResponse:
         self.Tfast = 1 / self.subbands_bandwidth[0]
         self.t0 = params["t0"]
         self.carrier_phase_vectors = {i: None for i in range(self.n_subbands)}
+
+        self.fast_time_oversampling = params["fast_time_oversampling"]
+        self.slow_time_oversampling = params["slow_time_oversampling"]
 
         self.subbands_CFR = {i: None for i in range(self.n_subbands)}
         self.subbands_CIR = {i: None for i in range(self.n_subbands)}
@@ -152,13 +157,30 @@ class SignalProcessor:
     def TO_compensation(self):
         for i in range(self.subb_chn.n_subbands):
             for k in range(self.subb_chn.slow_time_samples):
-                cir = self.subb_chn.subbands_CIR[i][:, k]
+                cir = np.fft.ifft(
+                    self.subb_chn.subbands_CFR[i][:, k],
+                    n=self.subb_chn.fast_time_samples
+                    * self.subb_chn.fast_time_oversampling,
+                )
                 pdp = np.abs(cir) ** 2
-                peaks, _ = find_peaks_mod(pdp, height=0.05 * np.max(pdp))
-                rolled_cir = np.roll(cir, -peaks[0])
-                self.subb_chn.subbands_CIR[i][:, k] = rolled_cir
-                self.subb_chn.subbands_CFR[i][:, k] = np.fft.fft(
-                    rolled_cir, axis=0, n=self.subb_chn.fast_time_samples
+                peaks, _ = find_peaks_mod(pdp, height=0.2 * np.max(pdp))
+                # rolled_cir = np.roll(cir, -peaks[0])
+                tau_o = peaks[0] * (
+                    self.subb_chn.Tfast / self.subb_chn.fast_time_oversampling
+                )
+                fgrid = (
+                    np.arange(self.subb_chn.fast_time_samples)
+                    * self.subb_chn.sc_spacing
+                )
+                to_component = np.exp(2j * np.pi * tau_o * fgrid)
+                clean_cfr = self.subb_chn.subbands_CFR[i][:, k] * to_component
+                # self.subb_chn.subbands_CIR[i][:, k] = rolled_cir
+                # self.subb_chn.subbands_CFR[i][:, k] = np.fft.fft(
+                #     rolled_cir, axis=0, n=self.subb_chn.fast_time_samples
+                # )
+                self.subb_chn.subbands_CFR[i][:, k] = clean_cfr
+                self.subb_chn.subbands_CIR[i][:, k] = np.fft.ifft(
+                    clean_cfr, axis=0, n=self.subb_chn.fast_time_samples
                 )
                 # plt.imshow(np.abs(self.subb_chn.subbands_CIR[i])[:50], aspect="auto")
                 # plt.show()
@@ -181,8 +203,8 @@ class SignalProcessor:
                 self.subb_chn.subbands_CIR[i],
                 axis=1,
                 n=self.subb_chn.slow_time_samples
-                * 64,  # this oversampling is essential for the phase correction!
-            )
+                * self.subb_chn.slow_time_oversampling,
+            )  # the oversampling is essential for the phase correction!
 
             # fig, ax = plt.subplots(1, 2)
             # ax[0].imshow(np.abs(st_cir_dft)[:50], aspect="auto")
