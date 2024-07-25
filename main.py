@@ -11,16 +11,16 @@ CHANNEL_PARAMS = {
     # "delays": [20e-9],  # [s]
     "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
-    "fast_time_oversampling": 128,
-    "slow_time_oversampling": 64,
+    "fast_time_oversampling": 256,
+    "slow_time_oversampling": 256,
     "sc_spacing": 240e3,  # [Hz]
     "t0": 0.019,  # [s]
     "Tslow": 0.9e-3,  # [s]
     "slow_time_samples": 64,
     "nominal_CFO": 1e-5,  # [ppm]
-    "CFO": "normal",
-    "RPO": "uniform",
-    "TO": "normal",
+    "CFO": True,
+    "RPO": False,
+    "TO": False,
 }
 
 
@@ -54,7 +54,7 @@ class ChannelFrequencyResponse:
         self.subbands_CFR = {i: None for i in range(self.n_subbands)}
         self.subbands_CIR = {i: None for i in range(self.n_subbands)}
 
-        if params["CFO"] == "normal":
+        if params["CFO"]:
             self.CFOs = np.array(
                 [
                     np.random.normal(0, 1, size=(self.slow_time_samples))
@@ -63,7 +63,7 @@ class ChannelFrequencyResponse:
                 ]
             )
 
-        if params["RPO"] == "uniform":
+        if params["RPO"]:
             self.RPOs = np.array(
                 [
                     np.random.uniform(0, 1, size=(self.slow_time_samples)) * 2 * np.pi
@@ -71,7 +71,7 @@ class ChannelFrequencyResponse:
                 ]
             )
 
-        if params["TO"] == "normal":
+        if params["TO"]:
             # self.TOs = np.array(
             #     [
             #         np.random.choice(np.arange(10), size=(1, self.slow_time_samples))
@@ -120,16 +120,20 @@ class ChannelFrequencyResponse:
                             )
                         )
                 # print()
+            # check if class has parameter TO
 
-            cfo_component = np.exp(2j * np.pi * self.CFOs[i])
-            self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
+            if hasattr(self, "CFOs"):
+                cfo_component = np.exp(2j * np.pi * self.CFOs[i])
+                self.subbands_CFR[i] *= cfo_component.reshape(1, -1)
 
-            rpo_component = np.exp(1j * self.RPOs[i])
-            self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
+            if hasattr(self, "RPOs"):
+                rpo_component = np.exp(1j * self.RPOs[i])
+                self.subbands_CFR[i] *= rpo_component.reshape(1, -1)
 
-            fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
-            to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
-            self.subbands_CFR[i] *= to_component
+            if hasattr(self, "TOs"):
+                fgrid = np.arange(self.fast_time_samples) * self.sc_spacing
+                to_component = np.exp(-2j * np.pi * self.TOs[i] * fgrid.reshape(-1, 1))
+                self.subbands_CFR[i] *= to_component
 
     def compute_CIR(self):
         for i in range(self.n_subbands):
