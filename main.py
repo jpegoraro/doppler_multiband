@@ -19,8 +19,8 @@ CHANNEL_PARAMS = {
     "slow_time_samples": 64,
     "nominal_CFO": 1e-5,  # [ppm]
     "CFO": True,
-    "RPO": False,
-    "TO": False,
+    "RPO": True,
+    "TO": True,
 }
 
 
@@ -297,8 +297,8 @@ if __name__ == "__main__":
             np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[1]
         )
         cfr2 = cfr.subbands_CFR[1][:, 0]
-        plt.plot(grid1, np.angle(cfr1), "r")
-        plt.plot(grid2, np.angle(cfr2), "b")
+        # plt.plot(grid1, np.angle(cfr1), "r")
+        # plt.plot(grid2, np.angle(cfr2), "b")
 
         proc.Doppler_compensation()
 
@@ -308,14 +308,16 @@ if __name__ == "__main__":
         phdiff = np.angle(cfr1[-1]) - np.angle(cfr2[0])
         phdiff = phdiff if np.abs(phdiff) < np.pi else 2 * np.pi - np.abs(phdiff)
         diffs.append(phdiff)
-        print(f"Phase diff. {phdiff:.2f}")
-        plt.plot(grid1, np.angle(cfr1), "--r")
-        plt.plot(grid2, np.angle(cfr2), "--b")
-        plt.xlim([6.085e10, 6.09e10])
-        plt.show()
+        # print(f"Phase diff. {phdiff:.2f}")
+        # plt.plot(grid1, np.angle(cfr1), "--r")
+        # plt.plot(grid2, np.angle(cfr2), "--b")
+        # plt.xlim([6.085e10, 6.09e10])
+        # plt.show()
 
         # plt.savefig(f"figs/fig_{kk}.png")
         # plt.close()
+
+    print(f"Avg. phase diff. {np.mean(np.abs(phdiff)):.2f}")
 
     # plt.hist(diffs)
     # plt.show()
