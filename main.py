@@ -6,9 +6,6 @@ CHANNEL_PARAMS = {
     "scatter_amplitudes": [10, 7],
     "velocities": [0.0, 3.0],  # [m/s]
     "delays": [0.0, 20e-9],  # [s]
-    # "scatter_amplitudes": [30],
-    # "velocities": [3.0],  # [m/s]
-    # "delays": [20e-9],  # [s]
     "subbands_carriers": [60.48e9, 60.88e9],  # 62.64e9],  # [Hz]
     "subbands_bandwidth": [400e6, 400e6],  # [Hz]
     "fast_time_oversampling": 256,
@@ -20,7 +17,8 @@ CHANNEL_PARAMS = {
     "nominal_CFO": 1e-5,  # [ppm]
     "CFO": True,
     "RPO": True,
-    "TO": True,
+    "TO": False,
+    "noise_var": 0.0,
 }
 
 
@@ -47,6 +45,7 @@ class ChannelFrequencyResponse:
         self.Tfast = 1 / self.subbands_bandwidth[0]
         self.t0 = params["t0"]
         self.carrier_phase_vectors = {i: None for i in range(self.n_subbands)}
+        self.noise_var = params["noise_var"]
 
         self.fast_time_oversampling = params["fast_time_oversampling"]
         self.slow_time_oversampling = params["slow_time_oversampling"]
@@ -99,10 +98,15 @@ class ChannelFrequencyResponse:
             #     self.subbands_carriers[i] if i == 1 else self.subbands_carriers[i]
             # )
 
-            # ugly loop to be sure it works
+            # TODO: make this more efficient
             for j in range(self.n_paths):
                 for n in range(self.fast_time_samples):
                     for k in range(self.slow_time_samples):
+                        # generate complex noise sample
+                        noise = (1 / np.sqrt(2)) * np.random.normal(
+                            0, np.sqrt(self.noise_var)
+                        ) + 1j * np.random.normal(0, np.sqrt(self.noise_var))
+                        # generate CFR sample
                         self.subbands_CFR[i][n, k] += (
                             self.scatter_coeff[j]
                             * np.exp(  # delay term
@@ -118,7 +122,7 @@ class ChannelFrequencyResponse:
                                 * self.subbands_carriers[i]
                                 * (self.t0 + k * self.Tslow)
                             )
-                        )
+                        ) + noise
                 # print()
             # check if class has parameter TO
 
@@ -297,8 +301,8 @@ if __name__ == "__main__":
             np.arange(cfr.fast_time_samples) * cfr.sc_spacing + cfr.subbands_carriers[1]
         )
         cfr2 = cfr.subbands_CFR[1][:, 0]
-        # plt.plot(grid1, np.angle(cfr1), "r")
-        # plt.plot(grid2, np.angle(cfr2), "b")
+        plt.plot(grid1, np.angle(cfr1), "r")
+        plt.plot(grid2, np.angle(cfr2), "b")
 
         proc.Doppler_compensation()
 
@@ -308,11 +312,11 @@ if __name__ == "__main__":
         phdiff = np.angle(cfr1[-1]) - np.angle(cfr2[0])
         phdiff = phdiff if np.abs(phdiff) < np.pi else 2 * np.pi - np.abs(phdiff)
         diffs.append(phdiff)
-        # print(f"Phase diff. {phdiff:.2f}")
-        # plt.plot(grid1, np.angle(cfr1), "--r")
-        # plt.plot(grid2, np.angle(cfr2), "--b")
-        # plt.xlim([6.085e10, 6.09e10])
-        # plt.show()
+        print(f"Phase diff. {phdiff:.2f}")
+        plt.plot(grid1, np.angle(cfr1), "--r")
+        plt.plot(grid2, np.angle(cfr2), "--b")
+        plt.xlim([6.085e10, 6.09e10])
+        plt.show()
 
         # plt.savefig(f"figs/fig_{kk}.png")
         # plt.close()
